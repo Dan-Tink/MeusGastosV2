@@ -333,15 +333,17 @@ fun HomeScreen(vm: MainViewModel) {
             lastType = vm.lastType,
             lastCategory = vm.lastCategory,
             onDismiss = { showNew = false },
-            onSave = { e, installments, keepOpen ->
-                vm.save(e, installments)
+            onSave = { e, installments, amountIsTotal, keepOpen ->
+                vm.save(e, installments, amountIsTotal)
                 if (keepOpen) {
                     toast("Gasto salvo!")
                 } else {
                     showNew = false
                 }
             },
+            onSaveScoped = { _, _ -> },
             onDelete = {},
+            onDeleteScoped = { _, _ -> },
             onManageTypes = { showTypes = true },
             onManageCategories = { showCategories = true }
         )
@@ -356,12 +358,20 @@ fun HomeScreen(vm: MainViewModel) {
             lastType = vm.lastType,
             lastCategory = vm.lastCategory,
             onDismiss = { editing = null },
-            onSave = { e, _, _ ->
+            onSave = { e, _, _, _ ->
                 vm.save(e, 1)
+                editing = null
+            },
+            onSaveScoped = { e, scope ->
+                vm.saveScoped(e, scope)
                 editing = null
             },
             onDelete = {
                 vm.delete(it)
+                editing = null
+            },
+            onDeleteScoped = { e, scope ->
+                vm.deleteScoped(e, scope)
                 editing = null
             },
             onManageTypes = { showTypes = true },
@@ -628,7 +638,7 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    e.description,
+                    e.title(),
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -666,288 +676,6 @@ fun PickDate(initial: LocalDate?, onPick: (LocalDate) -> Unit, onDismiss: () -> 
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     ) {
         DatePicker(state = st)
-    }
-}
-
-@Composable
-private fun ExpenseSheet(
-    initial: Expense?,
-    types: List<ExpenseType>,
-    categories: List<Category>,
-    history: List<Expense>,
-    lastType: String,
-    lastCategory: String,
-    onDismiss: () -> Unit,
-    onSave: (Expense, Int, Boolean) -> Unit,
-    onDelete: (Expense) -> Unit,
-    onManageTypes: () -> Unit,
-    onManageCategories: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var type by remember {
-        mutableStateOf(
-            initial?.type
-                ?: lastType.takeIf { lt -> types.any { it.name == lt } }
-                ?: types.firstOrNull()?.name
-                ?: ""
-        )
-    }
-    var category by remember {
-        mutableStateOf(
-            initial?.category
-                ?: lastCategory.takeIf { lc -> categories.any { it.name == lc } }
-                ?: "Outros"
-        )
-    }
-    var desc by remember { mutableStateOf(initial?.description ?: "") }
-    var amount by remember { mutableStateOf(initial?.amountCents?.toPlain() ?: "") }
-    var date by remember {
-        mutableStateOf(initial?.let { LocalDate.ofEpochDay(it.epochDay) } ?: LocalDate.now())
-    }
-    var instText by remember { mutableStateOf("1") }
-    var pickDate by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
-
-    LaunchedEffect(types) {
-        if (type.isBlank()) type = types.firstOrNull()?.name ?: ""
-    }
-
-    val cents = parseCents(amount)
-    val installments = (instText.toIntOrNull() ?: 1).coerceIn(1, 60)
-    val valid = type.isNotBlank() && desc.isNotBlank() && cents != null && cents >= installments
-
-    // Sugestões: descrições já usadas antes, da mais recente para a mais antiga.
-    val suggestions = remember(desc, history) {
-        val q = desc.trim().lowercase()
-        if (initial != null || q.isEmpty()) {
-            emptyList()
-        } else {
-            history.asSequence()
-                .map { it to it.description.replace(InstallmentRegex, "") }
-                .filter { (_, d) ->
-                    d.lowercase().contains(q) && !d.equals(desc.trim(), ignoreCase = true)
-                }
-                .distinctBy { (_, d) -> d.lowercase() }
-                .take(4)
-                .map { (e, d) -> e.copy(description = d) }
-                .toList()
-        }
-    }
-
-    fun buildExpense() = Expense(
-        id = initial?.id ?: 0L,
-        type = type,
-        description = desc.trim(),
-        amountCents = cents ?: 0L,
-        epochDay = date.toEpochDay(),
-        category = category
-    )
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(
-                if (initial == null) "Novo gasto" else "Editar gasto",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "Tipo",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                types.forEach { t ->
-                    FilterChip(
-                        selected = type == t.name,
-                        onClick = { type = t.name },
-                        label = { Text(t.name) }
-                    )
-                }
-                AssistChip(onClick = onManageTypes, label = { Text("+ Tipo") })
-            }
-
-            Text(
-                "Categoria",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                categories.forEach { c ->
-                    FilterChip(
-                        selected = category == c.name,
-                        onClick = { category = c.name },
-                        label = { Text(c.name) }
-                    )
-                }
-                AssistChip(onClick = onManageCategories, label = { Text("+ Categoria") })
-            }
-
-            OutlinedTextField(
-                value = desc,
-                onValueChange = { desc = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Descrição") },
-                placeholder = { Text("ex.: comprei uma coxinha") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp)
-            )
-            if (suggestions.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    suggestions.forEach { s ->
-                        AssistChip(
-                            onClick = {
-                                desc = s.description
-                                if (types.any { it.name == s.type }) type = s.type
-                                if (categories.any { it.name == s.category }) category = s.category
-                                if (amount.isBlank()) amount = s.amountCents.toPlain()
-                            },
-                            label = { Text(s.description) }
-                        )
-                    }
-                }
-            }
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(if (initial == null && installments > 1) "Valor total" else "Valor") },
-                placeholder = { Text("4,50") },
-                prefix = { Text("R$ ") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(14.dp)
-            )
-
-            if (initial == null) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = instText,
-                        onValueChange = { instText = it.filter(Char::isDigit).take(2) },
-                        modifier = Modifier.width(110.dp),
-                        label = { Text("Parcelas") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                    OutlinedButton(
-                        onClick = { pickDate = true },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(date.fmt())
-                    }
-                }
-                if (installments > 1 && cents != null) {
-                    Text(
-                        "${installments}x de ${(cents / installments).toMoney()}. " +
-                            "O valor acima é o total da compra; cada parcela cai em um mês.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                OutlinedButton(
-                    onClick = { pickDate = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(date.fmt())
-                }
-            }
-
-            Button(
-                onClick = {
-                    onSave(buildExpense(), if (initial == null) installments else 1, false)
-                },
-                enabled = valid,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text(if (initial == null && installments > 1) "Salvar parcelado" else "Salvar") }
-
-            if (initial == null) {
-                OutlinedButton(
-                    onClick = {
-                        onSave(buildExpense(), installments, true)
-                        desc = ""
-                        amount = ""
-                        instText = "1"
-                    },
-                    enabled = valid,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("Salvar e adicionar outro") }
-            }
-
-            if (initial != null) {
-                TextButton(
-                    onClick = { confirmDelete = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Excluir gasto", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        }
-    }
-
-    if (pickDate) {
-        PickDate(initial = date, onPick = { date = it }, onDismiss = { pickDate = false })
-    }
-
-    if (confirmDelete && initial != null) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Excluir gasto?") },
-            text = { Text("\"${initial.description}\" será removido.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    onDelete(initial)
-                }) {
-                    Text("Excluir", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }
-        )
     }
 }
 

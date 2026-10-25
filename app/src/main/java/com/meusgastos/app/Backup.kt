@@ -17,7 +17,7 @@ suspend fun buildCsv(dao: ExpenseDao): String {
             "Gasto",
             e.type,
             e.category,
-            e.description,
+            e.title(),
             e.amountCents.toPlain()
         )
         rows.add(e.epochDay to cells.joinToString(";") { csvCell(it) })
@@ -64,6 +64,9 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("description", it.description)
                 .put("amountCents", it.amountCents)
                 .put("epochDay", it.epochDay)
+                .put("groupId", it.groupId)
+                .put("installmentNo", it.installmentNo)
+                .put("installmentCount", it.installmentCount)
         })
     )
     root.put(
@@ -107,6 +110,9 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
             Expense(
                 type = it.getString("type"),
                 category = it.optString("category", "Outros"),
+                groupId = if (it.has("groupId")) it.getLong("groupId") else null,
+                installmentNo = it.optInt("installmentNo", 0),
+                installmentCount = it.optInt("installmentCount", 0),
                 description = it.getString("description"),
                 amountCents = it.getLong("amountCents"),
                 epochDay = it.getLong("epochDay")

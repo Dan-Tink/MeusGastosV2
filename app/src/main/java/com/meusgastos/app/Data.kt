@@ -25,7 +25,12 @@ data class Expense(
     val description: String,
     val amountCents: Long,
     val epochDay: Long,
-    val category: String = "Outros"
+    val category: String = "Outros",
+    /** Parcelas da mesma compra compartilham o mesmo groupId. Null = gasto avulso. */
+    val groupId: Long? = null,
+    /** Número desta parcela (1..installmentCount). 0 = gasto avulso. */
+    val installmentNo: Int = 0,
+    val installmentCount: Int = 0
 )
 
 @Entity(tableName = "types")
@@ -109,6 +114,23 @@ abstract class ExpenseDao {
 
     @Delete
     abstract suspend fun delete(expense: Expense)
+
+    // ---- parcelas em grupo ----
+    @Query("DELETE FROM expenses WHERE groupId = :groupId AND installmentNo >= :fromNo")
+    abstract suspend fun deleteGroupFrom(groupId: Long, fromNo: Int)
+
+    @Query(
+        "UPDATE expenses SET description = :description, type = :type, category = :category, " +
+            "amountCents = :amountCents WHERE groupId = :groupId AND installmentNo >= :fromNo"
+    )
+    abstract suspend fun updateGroupFrom(
+        groupId: Long,
+        fromNo: Int,
+        description: String,
+        type: String,
+        category: String,
+        amountCents: Long
+    )
 
     // ---- ganhos ----
     @Insert
@@ -291,9 +313,49 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE expenses ADD COLUMN groupId INTEGER")
+        db.execSQL("ALTER TABLE expenses ADD COLUMN installmentNo INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE expenses ADD COLUMN installmentCount INTEGER NOT NULL DEFAULT 0")
+
+        // Religa parcelas antigas, que só tinham o sufixo "(n/N)" no texto da descrição.
+        class OldRow(val id: Long, val base: String, val no: Int, val count: Int, val type: String)
+        class OldGroup(val id: Long) {
+            val used = HashSet<Int>()
+        }
+
+        val regex = Regex("^(.*) \\((\\d+)/(\\d+)\\)$")
+        val rows = ArrayList<OldRow>()
+        db.query("SELECT id, description, type FROM expenses ORDER BY id").use { c ->
+            while (c.moveToNext()) {
+                val m = regex.find(c.getString(1)) ?: continue
+                val no = m.groupValues[2].toInt()
+                val count = m.groupValues[3].toInt()
+                if (count < 2 || no < 1 || no > count) continue
+                rows.add(OldRow(c.getLong(0), m.groupValues[1], no, count, c.getString(2)))
+            }
+        }
+
+        val groups = HashMap<String, MutableList<OldGroup>>()
+        var nextId = 1L
+        for (r in rows) {
+            val key = "${r.type}|${r.count}|${r.base}"
+            val list = groups.getOrPut(key) { ArrayList() }
+            val group = list.firstOrNull { r.no !in it.used } ?: OldGroup(nextId++).also { list.add(it) }
+            group.used.add(r.no)
+            db.execSQL(
+                "UPDATE expenses SET description = ?, groupId = ?, installmentNo = ?, " +
+                    "installmentCount = ? WHERE id = ?",
+                arrayOf<Any?>(r.base, group.id, r.no, r.count, r.id)
+            )
+        }
+    }
+}
+
 @Database(
     entities = [Expense::class, ExpenseType::class, Category::class, Income::class, Recurring::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -309,7 +371,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

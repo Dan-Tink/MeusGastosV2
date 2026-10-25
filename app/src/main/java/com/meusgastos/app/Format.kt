@@ -35,6 +35,10 @@ val InstallmentRegex = Regex("\\s*\\(\\d+/\\d+\\)$")
 
 fun YearMonth.label(): String = monthName().replaceFirstChar { it.uppercase() } + " " + year
 
+/** Texto exibido do gasto; em parcelas inclui o número, como "Moto (3/48)". */
+fun Expense.title(): String =
+    if (installmentCount > 1) "$description ($installmentNo/$installmentCount)" else description
+
 fun YearMonth.monthIndex(): Int = year * 12 + (monthValue - 1)
 
 fun monthFromIndex(index: Int): YearMonth = YearMonth.of(index / 12, index % 12 + 1)

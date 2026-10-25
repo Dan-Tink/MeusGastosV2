@@ -39,6 +39,9 @@ data class Filters(
 
 enum class Scope { MONTH, RANGE, SEARCH }
 
+/** Até onde uma edição ou exclusão de parcela se aplica. */
+enum class GroupScope { ONE, FROM_HERE, ALL }
+
 data class UiState(
     val items: List<Expense> = emptyList(),
     val total: Long = 0,
@@ -179,22 +182,29 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- gastos
 
-    /** Salva um gasto. Em um gasto novo, [installments] > 1 divide o valor em parcelas mensais. */
-    fun save(e: Expense, installments: Int = 1) {
+    /**
+     * Salva um gasto. Em um gasto novo com [installments] > 1, cria uma parcela por mês.
+     * Se [amountIsTotal], o valor é dividido pelas parcelas (os centavos que sobram vão na
+     * 1ª); senão, o valor já é o de cada parcela.
+     */
+    fun save(e: Expense, installments: Int = 1, amountIsTotal: Boolean = false) {
         viewModelScope.launch {
             val base = LocalDate.ofEpochDay(e.epochDay)
             if (e.id != 0L) {
                 dao.update(e)
             } else if (installments > 1) {
-                val each = e.amountCents / installments
-                val rest = e.amountCents - each * installments
+                val each = if (amountIsTotal) e.amountCents / installments else e.amountCents
+                val rest = if (amountIsTotal) e.amountCents - each * installments else 0L
+                val group = System.currentTimeMillis()
                 val list = (0 until installments).map { i ->
                     val m = YearMonth.from(base).plusMonths(i.toLong())
                     e.copy(
                         id = 0,
-                        description = "${e.description} (${i + 1}/$installments)",
                         amountCents = each + if (i == 0) rest else 0L,
-                        epochDay = dayIn(m, base.dayOfMonth).toEpochDay()
+                        epochDay = dayIn(m, base.dayOfMonth).toEpochDay(),
+                        groupId = group,
+                        installmentNo = i + 1,
+                        installmentCount = installments
                     )
                 }
                 dao.insertExpenses(list)
@@ -207,8 +217,34 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Edita uma parcela e, conforme [scope], as seguintes ou todas (menos a data). */
+    fun saveScoped(e: Expense, scope: GroupScope) {
+        viewModelScope.launch {
+            dao.update(e)
+            val group = e.groupId
+            if (group != null && scope != GroupScope.ONE) {
+                val from = if (scope == GroupScope.ALL) 0 else e.installmentNo
+                dao.updateGroupFrom(group, from, e.description, e.type, e.category, e.amountCents)
+            }
+            settings.lastType = e.type
+            settings.lastCategory = e.category
+        }
+    }
+
     fun delete(e: Expense) {
         viewModelScope.launch { dao.delete(e) }
+    }
+
+    /** Exclui uma parcela e, conforme [scope], as seguintes ou todas. */
+    fun deleteScoped(e: Expense, scope: GroupScope) {
+        viewModelScope.launch {
+            val group = e.groupId
+            if (group == null || scope == GroupScope.ONE) {
+                dao.delete(e)
+            } else {
+                dao.deleteGroupFrom(group, if (scope == GroupScope.ALL) 0 else e.installmentNo)
+            }
+        }
     }
 
     // ---------------------------------------------------------------- ganhos
@@ -358,7 +394,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
             val newExpenses = expenses
                 .filter { inMonth(it.epochDay, prev) && it.type in fixedNames }
-                .filter { !InstallmentRegex.containsMatchIn(it.description) }
+                .filter { it.groupId == null }
                 .filter { e ->
                     currentExpenses.none {
                         it.type == e.type &&
