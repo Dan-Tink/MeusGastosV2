@@ -52,9 +52,22 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         val ctx = applicationContext
 
-        // Se já lançou algum gasto hoje, não incomoda.
+        // Contas pendentes vencidas ou que vencem até amanhã; e se já lançou algo hoje.
         val dao = AppDatabase.get(ctx).dao()
-        if (dao.countOnDay(LocalDate.now().toEpochDay()) > 0) return Result.success()
+        val today = LocalDate.now().toEpochDay()
+        val due = dao.countPendingUntil(today + 1)
+        val noLaunchToday = dao.countOnDay(today) == 0
+        if (due == 0 && !noLaunchToday) return Result.success()
+
+        val parts = mutableListOf<String>()
+        if (due > 0) {
+            parts.add(
+                if (due == 1) "Você tem 1 conta pendente vencida ou a vencer até amanhã."
+                else "Você tem $due contas pendentes vencidas ou a vencer até amanhã."
+            )
+        }
+        if (noLaunchToday) parts.add("Lançou os gastos de hoje?")
+        val message = parts.joinToString(" ")
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
@@ -83,7 +96,8 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val notification = NotificationCompat.Builder(ctx, Reminder.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Meus Gastos")
-            .setContentText("Lançou os gastos de hoje? Leva só um minutinho.")
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()

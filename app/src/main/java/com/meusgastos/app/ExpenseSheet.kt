@@ -2,6 +2,9 @@
 
 package com.meusgastos.app
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,8 +21,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -32,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -43,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -70,6 +77,11 @@ fun ExpenseSheet(
     onManageTypes: () -> Unit,
     onManageCategories: () -> Unit
 ) {
+    val context = LocalContext.current
+    fun toast(msg: String) {
+        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+    }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var type by remember {
         mutableStateOf(
@@ -98,6 +110,41 @@ fun ExpenseSheet(
     var confirmDelete by remember { mutableStateOf(false) }
     var scopeAction by remember { mutableStateOf<ScopeAction?>(null) }
 
+    // Situação (pago/pendente) e comprovante.
+    var paid by remember { mutableStateOf(initial?.paid ?: true) }
+    var paidTouched by remember { mutableStateOf(false) }
+    var receipt by remember { mutableStateOf(initial?.receipt) }
+    val addedReceipts = remember { mutableListOf<String>() }
+    var cameraName by remember { mutableStateOf<String?>(null) }
+
+    val attachLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val name = Receipts.saveCopy(context, uri)
+            if (name != null) {
+                addedReceipts.add(name)
+                receipt = name
+            } else {
+                toast("Escolha uma foto ou um PDF.")
+            }
+        }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val name = cameraName
+        if (name != null) {
+            if (ok) {
+                addedReceipts.add(name)
+                receipt = name
+            } else {
+                Receipts.delete(context, name)
+            }
+        }
+        cameraName = null
+    }
+
     LaunchedEffect(types) {
         if (type.isBlank()) type = types.firstOrNull()?.name ?: ""
     }
@@ -107,6 +154,12 @@ fun ExpenseSheet(
     val installments = if (initial == null) (instText.toIntOrNull() ?: 1).coerceIn(1, 120) else 1
     val valid = type.isNotBlank() && desc.isNotBlank() && cents != null &&
         (installments == 1 || !amountIsTotal || cents >= installments)
+
+    // Gasto fixo e parcelado nascem pendentes; o avulso nasce pago. Vale até você mexer na chave.
+    val typeIsFixed = types.firstOrNull { it.name == type }?.fixed == true
+    LaunchedEffect(type, installments, typeIsFixed) {
+        if (initial == null && !paidTouched) paid = !(typeIsFixed || installments > 1)
+    }
 
     // Quanto cada parcela custa e quanto fica o total, conforme o modo escolhido.
     val perInstallment: Long? = cents?.let { if (amountIsTotal) it / installments else it }
@@ -140,11 +193,27 @@ fun ExpenseSheet(
         category = category,
         groupId = initial?.groupId,
         installmentNo = initial?.installmentNo ?: 0,
-        installmentCount = initial?.installmentCount ?: 0
+        installmentCount = initial?.installmentCount ?: 0,
+        paid = paid,
+        receipt = receipt
     )
 
+    /** Apaga arquivos de comprovante que ficaram sem uso (anexados e descartados, ou trocados). */
+    fun finalizeReceipts(saved: Boolean) {
+        val keep = if (saved) receipt else initial?.receipt
+        addedReceipts.filter { it != keep }.forEach { Receipts.delete(context, it) }
+        if (saved) {
+            val old = initial?.receipt
+            if (old != null && old != receipt) Receipts.delete(context, old)
+        }
+        addedReceipts.clear()
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            finalizeReceipts(false)
+            onDismiss()
+        },
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -349,9 +418,95 @@ fun ExpenseSheet(
                 Text(if (initial == null && installments > 1) "1ª parcela em ${date.fmt()}" else date.fmt())
             }
 
+            // ---- Situação: pago ou pendente ----
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (initial == null && installments > 1) "1ª parcela já foi paga?" else "Já foi pago?",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        if (paid) "Marcado como pago."
+                        else "Fica como pendente até você confirmar na lista.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = paid,
+                    onCheckedChange = {
+                        paid = it
+                        paidTouched = true
+                    }
+                )
+            }
+
+            // ---- Comprovante ----
+            SheetLabel("Comprovante")
+            val receiptName = receipt
+            if (receiptName != null) {
+                val fileOk = Receipts.exists(context, receiptName)
+                Text(
+                    if (fileOk) "Comprovante anexado."
+                    else "O arquivo deste comprovante não está neste aparelho.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (fileOk) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (fileOk) {
+                        OutlinedButton(
+                            onClick = {
+                                if (!Receipts.open(context, receiptName)) {
+                                    toast("Não há app para abrir este arquivo.")
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Default.AttachFile, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Ver")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { receipt = null },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("Remover") }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { attachLauncher.launch(arrayOf("image/*", "application/pdf")) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Default.AttachFile, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Anexar")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val (name, uri) = Receipts.newPhoto(context)
+                            cameraName = name
+                            cameraLauncher.launch(uri)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Tirar foto")
+                    }
+                }
+            }
+
             if (isGrouped) {
                 Text(
-                    "Ao salvar, você escolhe se vale só para esta parcela, para as próximas ou para todas.",
+                    "Ao salvar, você escolhe se vale só para esta parcela, para as próximas ou para todas. " +
+                        "Situação, data e comprovante valem só para esta parcela.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -362,7 +517,9 @@ fun ExpenseSheet(
                     if (isGrouped) {
                         scopeAction = ScopeAction.SAVE
                     } else {
-                        onSave(buildExpense(), installments, amountIsTotal, false)
+                        val e = buildExpense()
+                        finalizeReceipts(true)
+                        onSave(e, installments, amountIsTotal, false)
                     }
                 },
                 enabled = valid,
@@ -377,11 +534,16 @@ fun ExpenseSheet(
             if (initial == null) {
                 OutlinedButton(
                     onClick = {
-                        onSave(buildExpense(), installments, amountIsTotal, true)
+                        val e = buildExpense()
+                        finalizeReceipts(true)
+                        onSave(e, installments, amountIsTotal, true)
                         desc = ""
                         amount = ""
                         instText = "1"
                         showCustom = false
+                        receipt = null
+                        paidTouched = false
+                        paid = !typeIsFixed
                     },
                     enabled = valid,
                     modifier = Modifier
@@ -426,6 +588,7 @@ fun ExpenseSheet(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
+                    finalizeReceipts(false)
                     onDelete(initial)
                 }) {
                     Text("Excluir", color = MaterialTheme.colorScheme.error)
@@ -444,8 +607,11 @@ fun ExpenseSheet(
             onPick = { scope ->
                 scopeAction = null
                 if (action == ScopeAction.SAVE) {
-                    onSaveScoped(buildExpense(), scope)
+                    val e = buildExpense()
+                    finalizeReceipts(true)
+                    onSaveScoped(e, scope)
                 } else {
+                    finalizeReceipts(false)
                     onDeleteScoped(initial, scope)
                 }
             },

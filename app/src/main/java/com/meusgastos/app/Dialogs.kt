@@ -507,7 +507,7 @@ fun SettingsDialog(
                     Column(Modifier.weight(1f)) {
                         Text("Lembrete diário", fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Uma notificação por dia, só se você ainda não lançou nada.",
+                            "Uma notificação por dia, se houver conta pendente vencendo ou se você ainda não lançou nada no dia.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

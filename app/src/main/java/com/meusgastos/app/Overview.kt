@@ -53,6 +53,7 @@ import java.time.YearMonth
 private val GreenColor = Color(0xFF34D399)
 private val AmberColor = Color(0xFFFBBF24)
 private val VioletColor = Color(0xFFA78BFA)
+private val PendingColor = Color(0xFFFB923C)
 
 @Composable
 fun OverviewCard(
@@ -62,8 +63,8 @@ fun OverviewCard(
     onIncomeClick: () -> Unit
 ) {
     val spent = o.spent
-    val over = o.balance < 0
-    val balanceColor = if (over) MaterialTheme.colorScheme.error else GreenColor
+    val balanceColor = if (o.balance < 0) MaterialTheme.colorScheme.error else GreenColor
+    val afterPendingColor = if (o.afterPending < 0) MaterialTheme.colorScheme.error else GreenColor
 
     // Referência da barra: o limite definido ou, na falta dele, os ganhos do mês.
     val reference: Long? = limit ?: o.income.takeIf { it > 0 }
@@ -89,7 +90,11 @@ fun OverviewCard(
             }
             Row(Modifier.fillMaxWidth()) {
                 Tile("Gastos variáveis", o.variable, VioletColor, Modifier.weight(1f))
+                Tile("Pendente", o.pending, PendingColor, Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth()) {
                 Tile("Saldo", o.balance, balanceColor, Modifier.weight(1f))
+                Tile("Após pendentes", o.afterPending, afterPendingColor, Modifier.weight(1f))
             }
 
             if (reference != null) {

@@ -17,6 +17,7 @@ import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 @Entity(tableName = "expenses")
 data class Expense(
@@ -30,7 +31,11 @@ data class Expense(
     val groupId: Long? = null,
     /** Número desta parcela (1..installmentCount). 0 = gasto avulso. */
     val installmentNo: Int = 0,
-    val installmentCount: Int = 0
+    val installmentCount: Int = 0,
+    /** false = conta pendente (ainda não paga). */
+    @ColumnInfo(defaultValue = "1") val paid: Boolean = true,
+    /** Nome do arquivo do comprovante, guardado na pasta do app. Null = sem comprovante. */
+    val receipt: String? = null
 )
 
 @Entity(tableName = "types")
@@ -50,6 +55,25 @@ data class Income(
     val amountCents: Long,
     val epochDay: Long
 )
+
+/** Dívida sem prazo: só um lembrete de quanto você deve e a quem. */
+@Entity(tableName = "debts")
+data class Debt(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** A quem você deve. */
+    val creditor: String,
+    val note: String,
+    /** Valor original da dívida. */
+    val amountCents: Long,
+    /** Quanto já foi pago (abatido). */
+    val paidCents: Long,
+    val epochDay: Long,
+    /** Dia em que foi quitada; null enquanto estiver em aberto. */
+    val settledDay: Long?
+) {
+    val remainingCents: Long get() = (amountCents - paidCents).coerceAtLeast(0)
+    val settled: Boolean get() = settledDay != null
+}
 
 /** Gasto ou ganho que se repete todo mês (aluguel, internet, salário...). */
 @Entity(tableName = "recurring")
@@ -82,6 +106,27 @@ abstract class ExpenseDao {
 
     @Query("SELECT * FROM recurring ORDER BY isIncome DESC, description")
     abstract fun observeRecurring(): Flow<List<Recurring>>
+
+    @Query("SELECT * FROM debts ORDER BY (settledDay IS NOT NULL), epochDay DESC, id DESC")
+    abstract fun observeDebts(): Flow<List<Debt>>
+
+    @Query("SELECT * FROM debts")
+    abstract suspend fun debtsOnce(): List<Debt>
+
+    @Insert
+    abstract suspend fun insertDebt(debt: Debt)
+
+    @Insert
+    abstract suspend fun insertDebts(list: List<Debt>)
+
+    @Update
+    abstract suspend fun updateDebt(debt: Debt)
+
+    @Delete
+    abstract suspend fun deleteDebt(debt: Debt)
+
+    @Query("DELETE FROM debts")
+    abstract suspend fun deleteAllDebts()
 
     // ---- leitura única ----
     @Query("SELECT * FROM expenses")
@@ -116,6 +161,13 @@ abstract class ExpenseDao {
     abstract suspend fun delete(expense: Expense)
 
     // ---- parcelas em grupo ----
+    @Query("UPDATE expenses SET paid = :paid WHERE id = :id")
+    abstract suspend fun setPaid(id: Long, paid: Boolean)
+
+    /** Contas pendentes com vencimento até o dia informado (inclui as atrasadas). */
+    @Query("SELECT COUNT(*) FROM expenses WHERE paid = 0 AND epochDay <= :untilDay")
+    abstract suspend fun countPendingUntil(untilDay: Long): Int
+
     @Query("DELETE FROM expenses WHERE groupId = :groupId AND installmentNo >= :fromNo")
     abstract suspend fun deleteGroupFrom(groupId: Long, fromNo: Int)
 
@@ -258,8 +310,13 @@ abstract class ExpenseDao {
         categories: List<Category>,
         expenses: List<Expense>,
         incomes: List<Income>,
-        recurring: List<Recurring>
+        recurring: List<Recurring>,
+        debts: List<Debt>? = null
     ) {
+        if (debts != null) {
+            deleteAllDebts()
+            insertDebts(debts)
+        }
         deleteAllExpenses()
         deleteAllIncomes()
         deleteAllRecurring()
@@ -353,9 +410,36 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Tudo que já existe passa a valer como pago, menos o que tem data futura.
+        db.execSQL("ALTER TABLE expenses ADD COLUMN paid INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE expenses ADD COLUMN receipt TEXT")
+        db.execSQL("UPDATE expenses SET paid = 0 WHERE epochDay > ${LocalDate.now().toEpochDay()}")
+    }
+}
+
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS debts (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "creditor TEXT NOT NULL, " +
+                "note TEXT NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "paidCents INTEGER NOT NULL, " +
+                "epochDay INTEGER NOT NULL, " +
+                "settledDay INTEGER)"
+        )
+    }
+}
+
 @Database(
-    entities = [Expense::class, ExpenseType::class, Category::class, Income::class, Recurring::class],
-    version = 4,
+    entities = [
+        Expense::class, ExpenseType::class, Category::class, Income::class,
+        Recurring::class, Debt::class
+    ],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -371,7 +455,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

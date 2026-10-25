@@ -316,8 +316,23 @@ fun HomeScreen(vm: MainViewModel) {
                 }
             }
 
+            if (state.items.isNotEmpty()) {
+                item {
+                    Text(
+                        "Toque no quadrado à esquerda para marcar como pago ou pendente.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             items(state.items, key = { it.id }) { e ->
-                ExpenseRow(e, onClick = { editing = e })
+                ExpenseRow(
+                    e = e,
+                    today = LocalDate.now(),
+                    onClick = { editing = e },
+                    onTogglePaid = { vm.setPaid(e, !e.paid) }
+                )
             }
 
             item { Spacer(Modifier.height(88.dp)) }
@@ -608,56 +623,6 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
 }
 
 @Composable
-private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
-    val color = typeColor(e.type)
-    val date = LocalDate.ofEpochDay(e.epochDay)
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    date.dayOfMonth.toString().padStart(2, '0'),
-                    color = color,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    e.title(),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    "${e.type} • ${e.category} • ${date.fmt()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(e.amountCents.toMoney(), fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
 fun PickDate(initial: LocalDate?, onPick: (LocalDate) -> Unit, onDismiss: () -> Unit) {
     val st = rememberDatePickerState(
         initialSelectedDateMillis = (initial ?: LocalDate.now())
@@ -695,6 +660,7 @@ private fun FiltersSheet(
     var from by remember { mutableStateOf(filters.from) }
     var to by remember { mutableStateOf(filters.to) }
     var byValue by remember { mutableStateOf(filters.sortByValue) }
+    var status by remember { mutableStateOf(filters.status) }
     var pickFrom by remember { mutableStateOf(false) }
     var pickTo by remember { mutableStateOf(false) }
 
@@ -810,6 +776,29 @@ private fun FiltersSheet(
             }
 
             Text(
+                "Situação",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = status == PayStatus.ALL,
+                    onClick = { status = PayStatus.ALL },
+                    label = { Text("Todas") }
+                )
+                FilterChip(
+                    selected = status == PayStatus.PENDING,
+                    onClick = { status = PayStatus.PENDING },
+                    label = { Text("Pendentes") }
+                )
+                FilterChip(
+                    selected = status == PayStatus.PAID,
+                    onClick = { status = PayStatus.PAID },
+                    label = { Text("Pagas") }
+                )
+            }
+
+            Text(
                 "Ordenar por",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -845,7 +834,8 @@ private fun FiltersSheet(
                                 maxCents = parseCents(maxText),
                                 from = from,
                                 to = to,
-                                sortByValue = byValue
+                                sortByValue = byValue,
+                                status = status
                             )
                         )
                     },

@@ -18,7 +18,9 @@ suspend fun buildCsv(dao: ExpenseDao): String {
             e.type,
             e.category,
             e.title(),
-            e.amountCents.toPlain()
+            e.amountCents.toPlain(),
+            if (e.paid) "Pago" else "Pendente",
+            if (e.receipt != null) "Sim" else "Não"
         )
         rows.add(e.epochDay to cells.joinToString(";") { csvCell(it) })
     }
@@ -29,12 +31,14 @@ suspend fun buildCsv(dao: ExpenseDao): String {
             "",
             "",
             i.description,
-            i.amountCents.toPlain()
+            i.amountCents.toPlain(),
+            "Recebido",
+            ""
         )
         rows.add(i.epochDay to cells.joinToString(";") { csvCell(it) })
     }
     val sb = StringBuilder("﻿")
-    sb.append("Data;Movimento;Tipo;Categoria;Descrição;Valor\r\n")
+    sb.append("Data;Movimento;Tipo;Categoria;Descrição;Valor;Situação;Comprovante\r\n")
     rows.sortedBy { it.first }.forEach { sb.append(it.second).append("\r\n") }
     return sb.toString()
 }
@@ -46,6 +50,7 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
     val expenses = dao.expensesOnce()
     val incomes = dao.incomesOnce()
     val recurring = dao.recurringOnce()
+    val debts = dao.debtsOnce()
 
     val root = JSONObject()
     root.put("app", "MeusGastos")
@@ -67,6 +72,8 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("groupId", it.groupId)
                 .put("installmentNo", it.installmentNo)
                 .put("installmentCount", it.installmentCount)
+                .put("paid", it.paid)
+                .put("receipt", it.receipt)
         })
     )
     root.put(
@@ -91,6 +98,18 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("lastGenerated", it.lastGenerated)
         })
     )
+    root.put(
+        "debts",
+        JSONArray(debts.map {
+            JSONObject()
+                .put("creditor", it.creditor)
+                .put("note", it.note)
+                .put("amountCents", it.amountCents)
+                .put("paidCents", it.paidCents)
+                .put("epochDay", it.epochDay)
+                .put("settledDay", it.settledDay ?: JSONObject.NULL)
+        })
+    )
     return root.toString(2)
 }
 
@@ -113,6 +132,8 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
                 groupId = if (it.has("groupId")) it.getLong("groupId") else null,
                 installmentNo = it.optInt("installmentNo", 0),
                 installmentCount = it.optInt("installmentCount", 0),
+                paid = it.optBoolean("paid", true),
+                receipt = if (it.has("receipt")) it.getString("receipt") else null,
                 description = it.getString("description"),
                 amountCents = it.getLong("amountCents"),
                 epochDay = it.getLong("epochDay")
@@ -136,7 +157,18 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
                 lastGenerated = it.getString("lastGenerated")
             )
         }
-        dao.replaceAll(types, categories, expenses, incomes, recurring)
+        // Backup antigo (sem a chave "debts") não apaga as dívidas atuais.
+        val debts = root.optJSONArray("debts")?.objects()?.map {
+            Debt(
+                creditor = it.getString("creditor"),
+                note = it.optString("note", ""),
+                amountCents = it.getLong("amountCents"),
+                paidCents = it.getLong("paidCents"),
+                epochDay = it.getLong("epochDay"),
+                settledDay = if (it.isNull("settledDay")) null else it.getLong("settledDay")
+            )
+        }
+        dao.replaceAll(types, categories, expenses, incomes, recurring, debts)
         true
     } catch (e: Exception) {
         false

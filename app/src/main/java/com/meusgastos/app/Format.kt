@@ -8,6 +8,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 val PtBR: Locale = Locale("pt", "BR")
@@ -20,7 +21,12 @@ fun Long.toPlain(): String = String.format(PtBR, "%.2f", this / 100.0)
 fun parseCents(input: String): Long? {
     var t = input.trim().replace("R$", "").replace(" ", "")
     if (t.isEmpty()) return null
-    if (t.contains(',')) t = t.replace(".", "").replace(',', '.')
+    if (t.contains(',')) {
+        t = t.replace(".", "").replace(',', '.')
+    } else if (Regex("^\\d{1,3}(\\.\\d{3})+$").matches(t)) {
+        // "1.500" sem vírgula = mil e quinhentos (ponto como separador de milhar).
+        t = t.replace(".", "")
+    }
     val value = t.toBigDecimalOrNull() ?: return null
     val cents = value.multiply(BigDecimal(100)).setScale(0, RoundingMode.HALF_UP).toLong()
     return if (cents > 0) cents else null
@@ -38,6 +44,20 @@ fun YearMonth.label(): String = monthName().replaceFirstChar { it.uppercase() } 
 /** Texto exibido do gasto; em parcelas inclui o número, como "Moto (3/48)". */
 fun Expense.title(): String =
     if (installmentCount > 1) "$description ($installmentNo/$installmentCount)" else description
+
+/** Aviso de vencimento de uma conta pendente; null se já está paga. */
+fun Expense.dueText(today: LocalDate): String? {
+    if (paid) return null
+    val days = ChronoUnit.DAYS.between(today, LocalDate.ofEpochDay(epochDay))
+    return when {
+        days == -1L -> "Atrasada há 1 dia"
+        days < 0L -> "Atrasada há ${-days} dias"
+        days == 0L -> "Vence hoje"
+        days == 1L -> "Vence amanhã"
+        days <= 7L -> "Vence em $days dias"
+        else -> "Pendente"
+    }
+}
 
 fun YearMonth.monthIndex(): Int = year * 12 + (monthValue - 1)
 

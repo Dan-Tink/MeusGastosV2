@@ -24,7 +24,8 @@ data class Filters(
     val maxCents: Long? = null,
     val from: LocalDate? = null,
     val to: LocalDate? = null,
-    val sortByValue: Boolean = false
+    val sortByValue: Boolean = false,
+    val status: PayStatus = PayStatus.ALL
 ) {
     val dateActive: Boolean get() = from != null || to != null
     val activeCount: Int
@@ -33,7 +34,8 @@ data class Filters(
             categories.isNotEmpty(),
             minCents != null || maxCents != null,
             dateActive,
-            sortByValue
+            sortByValue,
+            status != PayStatus.ALL
         ).count { it }
 }
 
@@ -41,6 +43,9 @@ enum class Scope { MONTH, RANGE, SEARCH }
 
 /** Até onde uma edição ou exclusão de parcela se aplica. */
 enum class GroupScope { ONE, FROM_HERE, ALL }
+
+/** Filtro de situação dos gastos. */
+enum class PayStatus { ALL, PENDING, PAID }
 
 data class UiState(
     val items: List<Expense> = emptyList(),
@@ -58,10 +63,18 @@ data class Overview(
     /** Total gasto no mês anterior, para comparação. */
     val prevSpent: Long = 0,
     /** Se não for null, [prevSpent] só conta até este dia do mês anterior (comparação justa). */
-    val prevUpToDay: Int? = null
+    val prevUpToDay: Int? = null,
+    /** Soma das contas do mês que ainda não foram pagas. */
+    val pending: Long = 0
 ) {
+    /** Total de gastos do mês (pagos + pendentes). */
     val spent: Long get() = fixed + variable
-    val balance: Long get() = income - fixed - variable
+
+    /** Saldo de agora: ganhos menos o que já foi pago. */
+    val balance: Long get() = income - (spent - pending)
+
+    /** Saldo depois de pagar tudo o que está pendente. */
+    val afterPending: Long get() = balance - pending
 }
 
 private fun inMonth(epochDay: Long, m: YearMonth): Boolean =
@@ -83,6 +96,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val recurring: StateFlow<List<Recurring>> = dao.observeRecurring()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val debts: StateFlow<List<Debt>> = dao.observeDebts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Todos os gastos, usados para sugerir descrições já digitadas. */
@@ -121,12 +137,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 YearMonth.from(d) == prev && (upTo == null || d.dayOfMonth <= upTo)
             }
             .sumOf { it.amountCents }
+        val pending = monthExpenses.filter { !it.paid }.sumOf { it.amountCents }
         Overview(
             income = income,
             fixed = fixed,
             variable = all - fixed,
             prevSpent = prevSpent,
-            prevUpToDay = upTo
+            prevUpToDay = upTo,
+            pending = pending
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Overview())
 
@@ -155,6 +173,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     e.category.norm().contains(q)) &&
                 (f.types.isEmpty() || e.type in f.types) &&
                 (f.categories.isEmpty() || e.category in f.categories) &&
+                (f.status == PayStatus.ALL ||
+                    (f.status == PayStatus.PENDING && !e.paid) ||
+                    (f.status == PayStatus.PAID && e.paid)) &&
                 (minC == null || e.amountCents >= minC) &&
                 (maxC == null || e.amountCents <= maxC)
         }
@@ -204,7 +225,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         epochDay = dayIn(m, base.dayOfMonth).toEpochDay(),
                         groupId = group,
                         installmentNo = i + 1,
-                        installmentCount = installments
+                        installmentCount = installments,
+                        // Só a 1ª parcela pode já nascer paga; as outras esperam a confirmação.
+                        paid = e.paid && i == 0,
+                        receipt = if (i == 0) e.receipt else null
                     )
                 }
                 dao.insertExpenses(list)
@@ -232,7 +256,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun delete(e: Expense) {
-        viewModelScope.launch { dao.delete(e) }
+        viewModelScope.launch {
+            Receipts.delete(app, e.receipt)
+            dao.delete(e)
+        }
+    }
+
+    /** Marca um gasto como pago ou pendente (toque rápido na lista). */
+    fun setPaid(e: Expense, paid: Boolean) {
+        viewModelScope.launch { dao.setPaid(e.id, paid) }
     }
 
     /** Exclui uma parcela e, conforme [scope], as seguintes ou todas. */
@@ -240,9 +272,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val group = e.groupId
             if (group == null || scope == GroupScope.ONE) {
+                Receipts.delete(app, e.receipt)
                 dao.delete(e)
             } else {
-                dao.deleteGroupFrom(group, if (scope == GroupScope.ALL) 0 else e.installmentNo)
+                val from = if (scope == GroupScope.ALL) 0 else e.installmentNo
+                dao.expensesOnce()
+                    .filter { it.groupId == group && it.installmentNo >= from }
+                    .forEach { Receipts.delete(app, it.receipt) }
+                dao.deleteGroupFrom(group, from)
             }
         }
     }
@@ -258,6 +295,41 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun deleteIncome(i: Income) {
         viewModelScope.launch { dao.deleteIncome(i) }
+    }
+
+    // -------------------------------------------------------------- dívidas
+
+    fun saveDebt(d: Debt) {
+        viewModelScope.launch {
+            if (d.id == 0L) dao.insertDebt(d) else dao.updateDebt(d)
+        }
+    }
+
+    fun deleteDebt(d: Debt) {
+        viewModelScope.launch { dao.deleteDebt(d) }
+    }
+
+    /** Abate um pagamento parcial. Se cobrir o que falta, a dívida fica quitada. */
+    fun payDebt(d: Debt, cents: Long) {
+        viewModelScope.launch {
+            val paid = (d.paidCents + cents).coerceAtMost(d.amountCents)
+            val done = paid >= d.amountCents
+            dao.updateDebt(
+                d.copy(paidCents = paid, settledDay = if (done) LocalDate.now().toEpochDay() else null)
+            )
+        }
+    }
+
+    /** Quita de uma vez o que ainda falta. */
+    fun settleDebt(d: Debt) {
+        viewModelScope.launch {
+            dao.updateDebt(d.copy(paidCents = d.amountCents, settledDay = LocalDate.now().toEpochDay()))
+        }
+    }
+
+    /** Desfaz a quitação: volta para em aberto, com o valor pago zerado. */
+    fun reopenDebt(d: Debt) {
+        viewModelScope.launch { dao.updateDebt(d.copy(paidCents = 0L, settledDay = null)) }
     }
 
     // ---------------------------------------------------------------- tipos
@@ -370,7 +442,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             category = r.category,
                             description = r.description,
                             amountCents = r.amountCents,
-                            epochDay = date.toEpochDay()
+                            epochDay = date.toEpochDay(),
+                            paid = false
                         )
                     )
                 }
@@ -404,7 +477,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 .map { e ->
                     val day = LocalDate.ofEpochDay(e.epochDay).dayOfMonth
-                    e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay())
+                    e.copy(
+                        id = 0,
+                        epochDay = dayIn(target, day).toEpochDay(),
+                        paid = false,
+                        receipt = null
+                    )
                 }
 
             val newIncomes = incomes
