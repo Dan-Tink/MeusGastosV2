@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
@@ -297,6 +299,73 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.deleteIncome(i) }
     }
 
+    /**
+     * Cria um ganho fixo (salário): lança todo mês no mesmo dia, do mês de [date] em diante.
+     * O lançamento do mês é criado na hora; os próximos meses nascem sozinhos.
+     */
+    fun saveFixedIncome(description: String, cents: Long, date: LocalDate) {
+        viewModelScope.launch {
+            dao.insertRecurring(
+                Recurring(
+                    isIncome = true,
+                    type = "",
+                    category = "",
+                    description = description.trim(),
+                    amountCents = cents,
+                    dayOfMonth = date.dayOfMonth,
+                    lastGenerated = YearMonth.from(date).minusMonths(1).toString()
+                )
+            )
+            runRecurring()
+            val start = YearMonth.from(date)
+            month.value = if (start.isAfter(YearMonth.now())) YearMonth.now() else start
+        }
+    }
+
+    /** Edita um ganho. Se for fixo, [scope] decide: só este mês ou este e os próximos. */
+    fun saveIncomeScoped(i: Income, scope: GroupScope) {
+        viewModelScope.launch {
+            dao.updateIncome(i)
+            val rid = i.recurringId
+            val ym = i.ym
+            if (rid != null && ym != null && scope != GroupScope.ONE) {
+                val day = LocalDate.ofEpochDay(i.epochDay).dayOfMonth
+                dao.recurringById(rid)?.let {
+                    dao.updateRecurring(
+                        it.copy(description = i.description, amountCents = i.amountCents, dayOfMonth = day)
+                    )
+                }
+                dao.incomesFrom(rid, ym).filter { it.id != i.id }.forEach { other ->
+                    val otherMonth = runCatching { YearMonth.parse(other.ym!!) }.getOrNull()
+                    dao.updateIncome(
+                        other.copy(
+                            description = i.description,
+                            amountCents = i.amountCents,
+                            epochDay = if (otherMonth != null) dayIn(otherMonth, day).toEpochDay()
+                            else other.epochDay
+                        )
+                    )
+                }
+            }
+            month.value = YearMonth.from(LocalDate.ofEpochDay(i.epochDay))
+        }
+    }
+
+    /** Exclui um ganho. Se for fixo, [scope] decide: só este mês ou este e os próximos (encerra o fixo). */
+    fun deleteIncomeScoped(i: Income, scope: GroupScope) {
+        viewModelScope.launch {
+            val rid = i.recurringId
+            val ym = i.ym
+            if (rid != null && ym != null && scope != GroupScope.ONE) {
+                dao.deleteIncomesFrom(rid, ym)
+                dao.recurringById(rid)?.let { dao.deleteRecurring(it) }
+            } else {
+                // "Só este mês": o fixo continua e não é recriado, pois o mês já foi gerado.
+                dao.deleteIncome(i)
+            }
+        }
+    }
+
     // -------------------------------------------------------------- dívidas
 
     fun saveDebt(d: Debt) {
@@ -419,22 +488,37 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { runRecurring() }
     }
 
-    private suspend fun runRecurring() {
+    private val recurringLock = Mutex()
+
+    private suspend fun runRecurring() = recurringLock.withLock {
         val now = YearMonth.now()
         for (r in dao.recurringOnce()) {
             val last = runCatching { YearMonth.parse(r.lastGenerated) }.getOrNull() ?: now.minusMonths(1)
             var m = last.plusMonths(1)
             var guard = 0
+            val incomes = if (r.isIncome) dao.incomesOnce().toMutableList() else mutableListOf()
             while (!m.isAfter(now) && guard < 24) {
                 val date = dayIn(m, r.dayOfMonth)
                 if (r.isIncome) {
-                    dao.insertIncome(
-                        Income(
-                            description = r.description,
-                            amountCents = r.amountCents,
-                            epochDay = date.toEpochDay()
+                    // Se você já lançou este ganho à mão no mês, vincula em vez de duplicar.
+                    val manual = incomes.firstOrNull {
+                        it.recurringId == null &&
+                            inMonth(it.epochDay, m) &&
+                            it.amountCents == r.amountCents && it.description.trim().equals(r.description.trim(), ignoreCase = true)
+                    }
+                    if (manual != null) {
+                        dao.linkIncome(manual.id, r.id, m.toString()); incomes.remove(manual)
+                    } else {
+                        dao.insertIncomeIgnore(
+                            Income(
+                                description = r.description,
+                                amountCents = r.amountCents,
+                                epochDay = date.toEpochDay(),
+                                recurringId = r.id,
+                                ym = m.toString()
+                            )
                         )
-                    )
+                    }
                 } else {
                     dao.insert(
                         Expense(
@@ -450,20 +534,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 m = m.plusMonths(1)
                 guard++
             }
-            if (last != now) dao.setLastGenerated(r.id, now.toString())
+            if (last != m.minusMonths(1)) dao.setLastGenerated(r.id, m.minusMonths(1).toString())
         }
     }
 
-    /** Copia os gastos fixos e os ganhos do mês anterior para o mês exibido, sem duplicar. */
+    /** Copia os gastos fixos do mês anterior para o mês exibido, sem duplicar. Ganhos fixos já são automáticos. */
     fun copyFixedFromPreviousMonth(onDone: (Int) -> Unit) {
         viewModelScope.launch {
             val target = month.value
             val prev = target.minusMonths(1)
             val fixedNames = dao.typesOnce().filter { it.fixed }.map { it.name }.toSet()
             val expenses = dao.expensesOnce()
-            val incomes = dao.incomesOnce()
             val currentExpenses = expenses.filter { inMonth(it.epochDay, target) }
-            val currentIncomes = incomes.filter { inMonth(it.epochDay, target) }
 
             val newExpenses = expenses
                 .filter { inMonth(it.epochDay, prev) && it.type in fixedNames }
@@ -485,22 +567,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     )
                 }
 
-            val newIncomes = incomes
-                .filter { inMonth(it.epochDay, prev) }
-                .filter { i ->
-                    currentIncomes.none {
-                        it.amountCents == i.amountCents &&
-                            it.description.equals(i.description, ignoreCase = true)
-                    }
-                }
-                .map { i ->
-                    val day = LocalDate.ofEpochDay(i.epochDay).dayOfMonth
-                    i.copy(id = 0, epochDay = dayIn(target, day).toEpochDay())
-                }
-
             if (newExpenses.isNotEmpty()) dao.insertExpenses(newExpenses)
-            if (newIncomes.isNotEmpty()) dao.insertIncomes(newIncomes)
-            onDone(newExpenses.size + newIncomes.size)
+            onDone(newExpenses.size)
         }
     }
 

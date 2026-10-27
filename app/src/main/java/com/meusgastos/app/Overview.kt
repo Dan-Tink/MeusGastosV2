@@ -20,11 +20,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -186,36 +187,94 @@ private fun Tile(
     }
 }
 
+/** Linha de um ganho na aba Resumo. Ganho fixo mostra o selo "Fixo". */
 @Composable
-fun IncomesSheet(
+fun IncomeRow(income: Income, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        income.description,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (income.recurringId != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Fixo",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Text(
+                    LocalDate.ofEpochDay(income.epochDay).fmt(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(income.amountCents.toMoney(), fontWeight = FontWeight.Bold, color = GreenColor)
+        }
+    }
+}
+
+private enum class IncomeAction { SAVE, DELETE }
+
+/**
+ * Criar ou editar um ganho.
+ * Novo: "Fixo (todo mês)" cria um ganho que se repete sozinho; "Só este mês" vale apenas no mês.
+ * Editar um ganho fixo pergunta se vale só para este mês ou também para os próximos.
+ */
+@Composable
+fun IncomeSheet(
+    initial: Income?,
     month: YearMonth,
-    incomes: List<Income>,
-    onSave: (Income) -> Unit,
-    onDelete: (Income) -> Unit,
+    onSaveOnce: (Income) -> Unit,
+    onSaveFixed: (String, Long, LocalDate) -> Unit,
+    onSaveScoped: (Income, GroupScope) -> Unit,
+    onDeleteScoped: (Income, GroupScope) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val defaultDate = if (YearMonth.now() == month) LocalDate.now() else month.atDay(1)
-
-    var editing by remember { mutableStateOf<Income?>(null) }
-    var desc by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(defaultDate) }
+    var fixed by remember { mutableStateOf(false) }
+    var desc by remember { mutableStateOf(initial?.description ?: "") }
+    var amount by remember { mutableStateOf(initial?.amountCents?.toPlain() ?: "") }
+    var date by remember {
+        mutableStateOf(initial?.let { LocalDate.ofEpochDay(it.epochDay) } ?: defaultDate)
+    }
     var pickDate by remember { mutableStateOf(false) }
+    var action by remember { mutableStateOf<IncomeAction?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
+    val isFixedExisting = initial?.recurringId != null
     val cents = parseCents(amount)
     val valid = desc.isNotBlank() && cents != null
 
-    fun reset() {
-        editing = null
-        desc = ""
-        amount = ""
-        date = defaultDate
-    }
+    fun buildIncome() = Income(
+        id = initial?.id ?: 0L,
+        description = desc.trim(),
+        amountCents = cents ?: 0L,
+        epochDay = date.toEpochDay(),
+        recurringId = initial?.recurringId,
+        ym = initial?.ym
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
@@ -225,73 +284,44 @@ fun IncomesSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                "Ganhos de ${month.label()}",
+                if (initial == null) "Novo ganho" else "Editar ganho",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                "Total: ${incomes.sumOf { it.amountCents }.toMoney()}",
-                color = GreenColor,
-                fontWeight = FontWeight.SemiBold
-            )
 
-            if (incomes.isEmpty()) {
+            if (initial == null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !fixed,
+                        onClick = { fixed = false },
+                        label = { Text("Só este mês") }
+                    )
+                    FilterChip(
+                        selected = fixed,
+                        onClick = { fixed = true },
+                        label = { Text("Fixo (todo mês)") }
+                    )
+                }
                 Text(
-                    "Nenhum ganho lançado neste mês.",
+                    if (fixed) {
+                        "Ex.: salário. Entra sozinho todo mês, no mesmo dia, a partir do mês da data escolhida."
+                    } else {
+                        "Ex.: freela, presente. Vale só para o mês da data escolhida."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            incomes.forEach { inc ->
-                Card(
-                    onClick = {
-                        editing = inc
-                        desc = inc.description
-                        amount = inc.amountCents.toPlain()
-                        date = LocalDate.ofEpochDay(inc.epochDay)
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                inc.description,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                LocalDate.ofEpochDay(inc.epochDay).fmt(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            inc.amountCents.toMoney(),
-                            fontWeight = FontWeight.Bold,
-                            color = GreenColor
-                        )
-                    }
-                }
+            } else if (isFixedExisting) {
+                Text(
+                    "Ganho fixo: se repete todo mês. Ao salvar, você escolhe se vale só para este mês ou também para os próximos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-
-            Text(
-                if (editing == null) "Novo ganho" else "Editar ganho",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
             OutlinedTextField(
                 value = desc,
                 onValueChange = { desc = it },
@@ -319,40 +349,102 @@ fun IncomesSheet(
             ) {
                 Icon(Icons.Default.CalendarMonth, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(date.fmt())
+                Text(
+                    if (initial == null && fixed) "Dia do recebimento: ${date.fmt()}"
+                    else "Data: ${date.fmt()}"
+                )
             }
+
             Button(
                 onClick = {
-                    onSave(
-                        Income(
-                            id = editing?.id ?: 0L,
-                            description = desc.trim(),
-                            amountCents = cents ?: 0L,
-                            epochDay = date.toEpochDay()
-                        )
-                    )
-                    reset()
+                    when {
+                        initial == null && fixed -> onSaveFixed(desc.trim(), cents ?: 0L, date)
+                        initial == null -> onSaveOnce(buildIncome())
+                        isFixedExisting -> {
+                            action = IncomeAction.SAVE
+                        }
+                        else -> onSaveOnce(buildIncome())
+                    }
                 },
                 enabled = valid,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp)
-            ) { Text(if (editing == null) "Adicionar ganho" else "Salvar alteração") }
+            ) { Text(if (initial == null && fixed) "Criar ganho fixo" else "Salvar") }
 
-            if (editing != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { reset() }) { Text("Cancelar edição") }
-                    TextButton(onClick = {
-                        editing?.let { onDelete(it) }
-                        reset()
-                    }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
-                }
+            if (initial != null) {
+                TextButton(
+                    onClick = {
+                        if (isFixedExisting) {
+                            action = IncomeAction.DELETE
+                        } else {
+                            confirmDelete = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Excluir ganho", color = MaterialTheme.colorScheme.error) }
             }
         }
     }
 
     if (pickDate) {
         PickDate(initial = date, onPick = { date = it }, onDismiss = { pickDate = false })
+    }
+
+    if (confirmDelete && initial != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Excluir ganho?") },
+            text = { Text("\"${initial.description}\" será removido deste mês.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDeleteScoped(initial, GroupScope.ONE)
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }
+        )
+    }
+
+    val pending = action
+    if (pending != null && initial != null) {
+        val deleting = pending == IncomeAction.DELETE
+        val color = if (deleting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+        AlertDialog(
+            onDismissRequest = { action = null },
+            title = { Text(if (deleting) "Excluir ganho fixo" else "Salvar alterações") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        if (deleting) "\"${initial.description}\" se repete todo mês. O que excluir?"
+                        else "\"${initial.description}\" se repete todo mês. Onde aplicar a mudança?"
+                    )
+                    TextButton(
+                        onClick = {
+                            action = null
+                            if (deleting) onDeleteScoped(initial, GroupScope.ONE)
+                            else onSaveScoped(buildIncome(), GroupScope.ONE)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Só este mês", color = color) }
+                    TextButton(
+                        onClick = {
+                            action = null
+                            if (deleting) onDeleteScoped(initial, GroupScope.FROM_HERE)
+                            else onSaveScoped(buildIncome(), GroupScope.FROM_HERE)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (deleting) "Este e os próximos (encerra o fixo)" else "Este e os próximos meses",
+                            color = color
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { action = null }) { Text("Cancelar") } }
+        )
     }
 }

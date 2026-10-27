@@ -6,6 +6,7 @@ import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
@@ -48,12 +49,22 @@ data class ExpenseType(
 @Entity(tableName = "categories")
 data class Category(@PrimaryKey val name: String)
 
-@Entity(tableName = "incomes")
+/**
+ * Ganho do mês. Se veio de um ganho fixo (salário), [recurringId] aponta para o [Recurring] e
+ * [ym] guarda o mês ("2026-10"): o índice único impede lançar o mesmo fixo duas vezes no mês.
+ * Ganhos variáveis (avulsos) têm os dois campos nulos e valem só para o mês em que foram lançados.
+ */
+@Entity(
+    tableName = "incomes",
+    indices = [Index(value = ["recurringId", "ym"], unique = true)]
+)
 data class Income(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val description: String,
     val amountCents: Long,
-    val epochDay: Long
+    val epochDay: Long,
+    val recurringId: Long? = null,
+    val ym: String? = null
 )
 
 /** Dívida sem prazo: só um lembrete de quanto você deve e a quem. */
@@ -187,6 +198,22 @@ abstract class ExpenseDao {
     // ---- ganhos ----
     @Insert
     abstract suspend fun insertIncome(income: Income)
+
+    /** Usado na geração dos ganhos fixos: se o mês já existe, ignora em vez de duplicar. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertIncomeIgnore(income: Income): Long
+
+    @Query("UPDATE incomes SET recurringId = :recurringId, ym = :ym WHERE id = :id")
+    abstract suspend fun linkIncome(id: Long, recurringId: Long, ym: String)
+
+    @Query("SELECT * FROM incomes WHERE recurringId = :recurringId AND ym >= :ym")
+    abstract suspend fun incomesFrom(recurringId: Long, ym: String): List<Income>
+
+    @Query("DELETE FROM incomes WHERE recurringId = :recurringId AND ym >= :ym")
+    abstract suspend fun deleteIncomesFrom(recurringId: Long, ym: String)
+
+    @Query("SELECT * FROM recurring WHERE id = :id")
+    abstract suspend fun recurringById(id: Long): Recurring?
 
     @Insert
     abstract suspend fun insertIncomes(list: List<Income>)
@@ -434,12 +461,24 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Só acrescenta: nenhum ganho existente é alterado ou apagado.
+        db.execSQL("ALTER TABLE incomes ADD COLUMN recurringId INTEGER")
+        db.execSQL("ALTER TABLE incomes ADD COLUMN ym TEXT")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_incomes_recurringId_ym` " +
+                "ON `incomes` (`recurringId`, `ym`)"
+        )
+    }
+}
+
 @Database(
     entities = [
         Expense::class, ExpenseType::class, Category::class, Income::class,
         Recurring::class, Debt::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -455,7 +494,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

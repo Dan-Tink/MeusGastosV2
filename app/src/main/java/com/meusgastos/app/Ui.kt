@@ -92,7 +92,8 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 @Composable
-fun HomeScreen(vm: MainViewModel) {
+/** [resumo] = false: aba Gastos (lista, busca, filtros). true: aba Resumo (painel do mês e ganhos). */
+fun HomeScreen(vm: MainViewModel, resumo: Boolean = false) {
     val state by vm.state.collectAsStateWithLifecycle()
     val types by vm.types.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -111,7 +112,8 @@ fun HomeScreen(vm: MainViewModel) {
     var showFilters by remember { mutableStateOf(false) }
     var showTypes by remember { mutableStateOf(false) }
     var showCategories by remember { mutableStateOf(false) }
-    var showIncomes by remember { mutableStateOf(false) }
+    var showIncomeSheet by remember { mutableStateOf(false) }
+    var editingIncome by remember { mutableStateOf<Income?>(null) }
     var showRecurring by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -159,13 +161,26 @@ fun HomeScreen(vm: MainViewModel) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showNew = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Novo gasto") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+            if (resumo) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        editingIncome = null
+                        showIncomeSheet = true
+                    },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Novo ganho") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                ExtendedFloatingActionButton(
+                    onClick = { showNew = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Novo gasto") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -187,10 +202,14 @@ fun HomeScreen(vm: MainViewModel) {
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        val hint = when (state.scope) {
-                            Scope.RANGE -> "Período personalizado"
-                            Scope.SEARCH -> "Buscando em todos os meses"
-                            Scope.MONTH -> null
+                        val hint: String? = if (resumo) {
+                            null
+                        } else {
+                            when (state.scope) {
+                                Scope.RANGE -> "Período personalizado"
+                                Scope.SEARCH -> "Buscando em todos os meses"
+                                Scope.MONTH -> null
+                            }
                         }
                         if (hint != null) {
                             Text(
@@ -217,7 +236,7 @@ fun HomeScreen(vm: MainViewModel) {
                                 onClick = { menuOpen = false; showCategories = true }
                             )
                             DropdownMenuItem(
-                                text = { Text("Gastos recorrentes") },
+                                text = { Text("Recorrentes (gastos e ganhos)") },
                                 onClick = { menuOpen = false; showRecurring = true }
                             )
                             DropdownMenuItem(
@@ -263,15 +282,54 @@ fun HomeScreen(vm: MainViewModel) {
                 }
             }
 
-            item {
-                OverviewCard(
-                    o = overview,
-                    limit = limit.takeIf { it > 0 },
-                    prevLabel = month.minusMonths(1).monthName(),
-                    onIncomeClick = { showIncomes = true }
-                )
+            if (resumo) {
+                item {
+                    OverviewCard(
+                        o = overview,
+                        limit = limit.takeIf { it > 0 },
+                        prevLabel = month.minusMonths(1).monthName(),
+                        onIncomeClick = {
+                            editingIncome = null
+                            showIncomeSheet = true
+                        }
+                    )
+                }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Ganhos do mês",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            monthIncomes.sumOf { it.amountCents }.toMoney(),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                if (monthIncomes.isEmpty()) {
+                    item {
+                        Text(
+                            "Nenhum ganho neste mês. Toque em \"Novo ganho\" e escolha Fixo (todo mês) para o salário.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(monthIncomes, key = { "ganho-${it.id}" }) { inc ->
+                    IncomeRow(inc) {
+                        editingIncome = inc
+                        showIncomeSheet = true
+                    }
+                }
             }
 
+            if (!resumo) {
             item {
                 OutlinedTextField(
                     value = filters.query,
@@ -333,6 +391,8 @@ fun HomeScreen(vm: MainViewModel) {
                     onClick = { editing = e },
                     onTogglePaid = { vm.setPaid(e, !e.paid) }
                 )
+            }
+
             }
 
             item { Spacer(Modifier.height(88.dp)) }
@@ -407,13 +467,34 @@ fun HomeScreen(vm: MainViewModel) {
         )
     }
 
-    if (showIncomes) {
-        IncomesSheet(
+    if (showIncomeSheet) {
+        IncomeSheet(
+            initial = editingIncome,
             month = month,
-            incomes = monthIncomes,
-            onSave = { vm.saveIncome(it) },
-            onDelete = { vm.deleteIncome(it) },
-            onDismiss = { showIncomes = false }
+            onSaveOnce = {
+                vm.saveIncome(it)
+                showIncomeSheet = false
+                editingIncome = null
+            },
+            onSaveFixed = { desc, cents, date ->
+                vm.saveFixedIncome(desc, cents, date)
+                showIncomeSheet = false
+                editingIncome = null
+            },
+            onSaveScoped = { i, scope ->
+                vm.saveIncomeScoped(i, scope)
+                showIncomeSheet = false
+                editingIncome = null
+            },
+            onDeleteScoped = { i, scope ->
+                vm.deleteIncomeScoped(i, scope)
+                showIncomeSheet = false
+                editingIncome = null
+            },
+            onDismiss = {
+                showIncomeSheet = false
+                editingIncome = null
+            }
         )
     }
 

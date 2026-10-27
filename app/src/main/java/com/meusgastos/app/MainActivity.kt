@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -30,7 +31,8 @@ class MainActivity : ComponentActivity() {
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f)) {
-                        if (tab == 0) HomeScreen(vm) else DebtsScreen(vm)
+                        // Gastos (0) e Resumo (1) compartilham a mesma tela; Dívidas (2) é separada.
+                        if (tab == 2) DebtsScreen(vm) else HomeScreen(vm, resumo = tab == 1)
                     }
                     NavigationBar {
                         NavigationBarItem(
@@ -42,6 +44,12 @@ class MainActivity : ComponentActivity() {
                         NavigationBarItem(
                             selected = tab == 1,
                             onClick = { tab = 1 },
+                            icon = { Icon(Icons.Default.PieChart, contentDescription = null) },
+                            label = { Text("Resumo") }
+                        )
+                        NavigationBarItem(
+                            selected = tab == 2,
+                            onClick = { tab = 2 },
                             icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null) },
                             label = { Text("Dívidas") }
                         )

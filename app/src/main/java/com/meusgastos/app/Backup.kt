@@ -83,12 +83,15 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("description", it.description)
                 .put("amountCents", it.amountCents)
                 .put("epochDay", it.epochDay)
+                .put("recurringId", it.recurringId ?: JSONObject.NULL)
+                .put("ym", it.ym ?: JSONObject.NULL)
         })
     )
     root.put(
         "recurring",
         JSONArray(recurring.map {
             JSONObject()
+                .put("id", it.id)
                 .put("isIncome", it.isIncome)
                 .put("type", it.type)
                 .put("category", it.category)
@@ -143,11 +146,15 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
             Income(
                 description = it.getString("description"),
                 amountCents = it.getLong("amountCents"),
-                epochDay = it.getLong("epochDay")
+                epochDay = it.getLong("epochDay"),
+                recurringId = if (it.isNull("recurringId")) null else it.getLong("recurringId"),
+                ym = if (it.isNull("ym")) null else it.getString("ym")
             )
         }
         val recurring = (root.optJSONArray("recurring") ?: JSONArray()).objects().map {
             Recurring(
+                // Mantém o id original: os ganhos fixos apontam para ele.
+                id = it.optLong("id", 0L),
                 isIncome = it.getBoolean("isIncome"),
                 type = it.getString("type"),
                 category = it.getString("category"),
