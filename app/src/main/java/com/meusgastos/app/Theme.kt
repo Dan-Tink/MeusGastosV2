@@ -1,41 +1,93 @@
 package com.meusgastos.app
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-private val Bg = Color(0xFF0B0F1A)
-private val SurfaceColor = Color(0xFF121A2B)
-private val CardColor = Color(0xFF1A2338)
-private val Cyan = Color(0xFF22D3EE)
-private val Violet = Color(0xFF8B5CF6)
+// Paleta pensada para uso prolongado à noite: fundo azul-petróleo bem escuro (não preto puro),
+// texto off-white (não branco puro) e acentos dessaturados, para não "vibrar" sobre o fundo.
+// Todos os pares texto/fundo ficam acima de 6:1 de contraste (WCAG AA exige 4.5:1).
+private val Bg = Color(0xFF0E131D)
+private val SurfaceColor = Color(0xFF141B28)
+private val CardColor = Color(0xFF1A2333)
+private val Teal = Color(0xFF5FC4D6)
+private val Violet = Color(0xFFAE9CF5)
+
+/** Verde dos ganhos/saldo positivo. */
+val PositiveColor = Color(0xFF5FD3A5)
+
+/** Amarelo de atenção (gastos fixos, limite perto de estourar). */
+val WarningColor = Color(0xFFE6B95C)
+
+/** Violeta dos gastos variáveis. */
+val AccentViolet = Violet
+
+/** Fonte dos valores em dinheiro: monoespaçada, dá o ar de painel técnico e alinha os dígitos. */
+val MoneyFont: FontFamily = FontFamily.Monospace
+
+/** Borda fina e discreta dos cartões, no lugar de sombras pesadas. */
+val CardBorder = BorderStroke(1.dp, Color(0xFF273248))
 
 private val Scheme = darkColorScheme(
-    primary = Cyan,
-    onPrimary = Color(0xFF00212B),
+    primary = Teal,
+    onPrimary = Color(0xFF062229),
     secondary = Violet,
-    onSecondary = Color.White,
+    onSecondary = Color(0xFF1C1540),
     background = Bg,
-    onBackground = Color(0xFFE6EAF2),
+    onBackground = Color(0xFFDCE3EE),
     surface = SurfaceColor,
-    onSurface = Color(0xFFE6EAF2),
+    onSurface = Color(0xFFDCE3EE),
     surfaceVariant = CardColor,
-    onSurfaceVariant = Color(0xFF9AA6BF),
-    outline = Color(0xFF2C3753),
-    error = Color(0xFFFF6B7A),
-    onError = Color.White
+    onSurfaceVariant = Color(0xFF93A1BA),
+    outline = Color(0xFF273248),
+    outlineVariant = Color(0xFF1F2940),
+    // Containers definidos à mão: sem isso o Material usa o roxo padrão nos chips, menus e diálogos.
+    primaryContainer = Color(0xFF16424C),
+    onPrimaryContainer = Color(0xFFC3EEF6),
+    secondaryContainer = Color(0xFF232E47),
+    onSecondaryContainer = Color(0xFFDCD6FA),
+    surfaceContainerLowest = Color(0xFF0B1019),
+    surfaceContainerLow = Color(0xFF111824),
+    surfaceContainer = Color(0xFF161E2C),
+    surfaceContainerHigh = Color(0xFF1A2333),
+    surfaceContainerHighest = Color(0xFF202B3E),
+    error = Color(0xFFF08A93),
+    onError = Color(0xFF3A0A10)
+)
+
+// Cantos um pouco mais retos: visual mais técnico. Diálogos e bottom sheets usam o "extraLarge".
+private val AppShapes = Shapes(
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(20.dp)
+)
+
+private val Base = Typography()
+
+// Rótulos pequenos com um pouco de espaçamento entre letras: leitura mais limpa e "técnica".
+private val AppTypography = Typography(
+    labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp),
+    labelSmall = Base.labelSmall.copy(letterSpacing = 0.6.sp)
 )
 
 private val TypePalette = listOf(
-    Color(0xFF22D3EE),
-    Color(0xFFA78BFA),
-    Color(0xFF34D399),
-    Color(0xFFFBBF24),
-    Color(0xFFF472B6),
-    Color(0xFF60A5FA),
-    Color(0xFFFB923C)
+    Color(0xFF5FC4D6),
+    Color(0xFFAE9CF5),
+    Color(0xFF5FD3A5),
+    Color(0xFFE6B95C),
+    Color(0xFFF08FBF),
+    Color(0xFF7FADF0),
+    Color(0xFFF0A070)
 )
 
 fun typeColor(name: String): Color =
@@ -44,19 +96,24 @@ fun typeColor(name: String): Color =
 fun paletteColor(index: Int): Color = TypePalette[index % TypePalette.size]
 
 private val CategoryColors = mapOf(
-    "Alimentação" to Color(0xFFFB923C),
-    "Transporte" to Color(0xFF60A5FA),
-    "Moradia" to Color(0xFFA78BFA),
-    "Saúde" to Color(0xFFF472B6),
-    "Lazer" to Color(0xFF34D399),
-    "Compras" to Color(0xFFFBBF24),
-    "Contas" to Color(0xFF22D3EE),
-    "Outros" to Color(0xFF94A3B8)
+    "Alimentação" to Color(0xFFF0A070),
+    "Transporte" to Color(0xFF7FADF0),
+    "Moradia" to Color(0xFFAE9CF5),
+    "Saúde" to Color(0xFFF08FBF),
+    "Lazer" to Color(0xFF5FD3A5),
+    "Compras" to Color(0xFFE6B95C),
+    "Contas" to Color(0xFF5FC4D6),
+    "Outros" to Color(0xFF8FA0B8)
 )
 
 fun categoryColor(name: String): Color = CategoryColors[name] ?: typeColor(name)
 
 @Composable
 fun MeusGastosTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = Scheme, content = content)
+    MaterialTheme(
+        colorScheme = Scheme,
+        typography = AppTypography,
+        shapes = AppShapes,
+        content = content
+    )
 }

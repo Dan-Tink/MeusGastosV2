@@ -39,6 +39,14 @@ data class Filters(
 
 enum class Scope { MONTH, RANGE, SEARCH }
 
+/** Gastos do mês exibido, sem considerar busca nem filtros: alimenta a aba Resumo. */
+data class MonthSummary(
+    val total: Long = 0,
+    val count: Int = 0,
+    val byType: List<Pair<String, Long>> = emptyList(),
+    val byCategory: List<Pair<String, Long>> = emptyList()
+)
+
 /** Até onde uma edição ou exclusão de parcela se aplica. */
 enum class GroupScope { ONE, FROM_HERE, ALL }
 
@@ -85,6 +93,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val recurring: StateFlow<List<Recurring>> = dao.observeRecurring()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Lançamentos detectados nas notificações dos bancos, esperando confirmação. */
+    val pending: StateFlow<List<PendingTx>> = dao.observePending()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val captureEnabled = MutableStateFlow(settings.captureEnabled)
+    val captureAuto = MutableStateFlow(settings.captureAuto)
+    val captureDisabled = MutableStateFlow(settings.captureDisabled)
+    val captureTipDismissed = MutableStateFlow(settings.captureTipDismissed)
+
     /** Todos os gastos, usados para sugerir descrições já digitadas. */
     val allExpenses: StateFlow<List<Expense>> = dao.observeExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -96,21 +113,43 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val lastType: String get() = settings.lastType
     val lastCategory: String get() = settings.lastCategory
 
+    /** Ganhos variáveis: valem só no mês em que foram lançados. */
     val monthIncomes: StateFlow<List<Income>> = combine(dao.observeIncomes(), month) { list, m ->
         list.filter { inMonth(it.epochDay, m) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Ganhos fixos: valem em todo mês a partir do começo deles, inclusive nos meses futuros. */
+    val monthFixedIncomes: StateFlow<List<FixedIncome>> =
+        combine(dao.observeFixedIncomes(), month) { list, m -> list.filter { it.activeIn(m) } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val monthSummary: StateFlow<MonthSummary> = combine(dao.observeExpenses(), month) { all, m ->
+        val list = all.filter { inMonth(it.epochDay, m) }
+        MonthSummary(
+            total = list.sumOf { it.amountCents },
+            count = list.size,
+            byType = list.groupBy { it.type }
+                .map { (name, items) -> name to items.sumOf { it.amountCents } }
+                .sortedByDescending { it.second },
+            byCategory = list.groupBy { it.category }
+                .map { (name, items) -> name to items.sumOf { it.amountCents } }
+                .sortedByDescending { it.second }
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthSummary())
 
     val overview: StateFlow<Overview> = combine(
         dao.observeExpenses(),
         dao.observeIncomes(),
         dao.observeTypes(),
+        dao.observeFixedIncomes(),
         month
-    ) { expenses, incomes, typeList, m ->
+    ) { expenses, incomes, typeList, fixedList, m ->
         val fixedNames = typeList.filter { it.fixed }.map { it.name }.toSet()
         val monthExpenses = expenses.filter { inMonth(it.epochDay, m) }
         val fixed = monthExpenses.filter { it.type in fixedNames }.sumOf { it.amountCents }
         val all = monthExpenses.sumOf { it.amountCents }
-        val income = incomes.filter { inMonth(it.epochDay, m) }.sumOf { it.amountCents }
+        val income = incomes.filter { inMonth(it.epochDay, m) }.sumOf { it.amountCents } +
+            fixedList.filter { it.activeIn(m) }.sumOf { it.amountCents }
         val prev = m.minusMonths(1)
         // No mês atual, compara com o mesmo trecho do mês anterior (até o dia de hoje).
         val upTo: Int? =
@@ -260,6 +299,34 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.deleteIncome(i) }
     }
 
+    /** Cria um ganho fixo (ou muda um existente) a partir do mês exibido. */
+    fun saveFixedIncome(description: String, cents: Long, day: Int, existing: FixedIncome?) {
+        viewModelScope.launch {
+            val from = month.value
+            if (existing == null) {
+                dao.insertFixedIncome(
+                    FixedIncome(
+                        description = description,
+                        amountCents = cents,
+                        dayOfMonth = day,
+                        startMonth = from.toString()
+                    )
+                )
+            } else {
+                dao.reviseFixedIncome(
+                    old = existing,
+                    updated = existing.copy(description = description, amountCents = cents, dayOfMonth = day),
+                    from = from
+                )
+            }
+        }
+    }
+
+    /** Para o ganho fixo a partir do mês exibido; os meses anteriores continuam contando. */
+    fun endFixedIncome(f: FixedIncome) {
+        viewModelScope.launch { dao.endFixedIncome(f, month.value) }
+    }
+
     // ---------------------------------------------------------------- tipos
 
     fun addType(name: String) {
@@ -381,16 +448,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Copia os gastos fixos e os ganhos do mês anterior para o mês exibido, sem duplicar. */
+    /** Copia os gastos fixos do mês anterior para o mês exibido, sem duplicar. */
     fun copyFixedFromPreviousMonth(onDone: (Int) -> Unit) {
         viewModelScope.launch {
             val target = month.value
             val prev = target.minusMonths(1)
             val fixedNames = dao.typesOnce().filter { it.fixed }.map { it.name }.toSet()
             val expenses = dao.expensesOnce()
-            val incomes = dao.incomesOnce()
             val currentExpenses = expenses.filter { inMonth(it.epochDay, target) }
-            val currentIncomes = incomes.filter { inMonth(it.epochDay, target) }
 
             val newExpenses = expenses
                 .filter { inMonth(it.epochDay, prev) && it.type in fixedNames }
@@ -407,23 +472,54 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay())
                 }
 
-            val newIncomes = incomes
-                .filter { inMonth(it.epochDay, prev) }
-                .filter { i ->
-                    currentIncomes.none {
-                        it.amountCents == i.amountCents &&
-                            it.description.equals(i.description, ignoreCase = true)
-                    }
-                }
-                .map { i ->
-                    val day = LocalDate.ofEpochDay(i.epochDay).dayOfMonth
-                    i.copy(id = 0, epochDay = dayIn(target, day).toEpochDay())
-                }
-
             if (newExpenses.isNotEmpty()) dao.insertExpenses(newExpenses)
-            if (newIncomes.isNotEmpty()) dao.insertIncomes(newIncomes)
-            onDone(newExpenses.size + newIncomes.size)
+            onDone(newExpenses.size)
         }
+    }
+
+    // ---------------------------------------------------------------- captura por notificação
+
+    fun confirmPending(p: PendingTx) {
+        viewModelScope.launch { dao.confirmPending(p) }
+    }
+
+    fun confirmAllPending() {
+        val list = pending.value
+        viewModelScope.launch { list.forEach { dao.confirmPending(it) } }
+    }
+
+    /** Confirma depois de o usuário ajustar tipo, categoria, nome, valor ou data. */
+    fun confirmPendingEdited(p: PendingTx, e: Expense) {
+        viewModelScope.launch {
+            dao.confirmPendingAs(p, e)
+            settings.lastType = e.type
+            settings.lastCategory = e.category
+        }
+    }
+
+    fun dismissPending(p: PendingTx) {
+        viewModelScope.launch { dao.claimPending(p.id, 2) }
+    }
+
+    fun setCaptureEnabled(on: Boolean) {
+        settings.captureEnabled = on
+        captureEnabled.value = on
+    }
+
+    fun setCaptureAuto(on: Boolean) {
+        settings.captureAuto = on
+        captureAuto.value = on
+    }
+
+    fun setBankEnabled(pkg: String, on: Boolean) {
+        val next = if (on) settings.captureDisabled - pkg else settings.captureDisabled + pkg
+        settings.captureDisabled = next
+        captureDisabled.value = next
+    }
+
+    fun dismissCaptureTip() {
+        settings.captureTipDismissed = true
+        captureTipDismissed.value = true
     }
 
     // ---------------------------------------------------------------- limite e lembrete

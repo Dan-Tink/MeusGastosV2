@@ -68,7 +68,9 @@ fun ExpenseSheet(
     onDelete: (Expense) -> Unit,
     onDeleteScoped: (Expense, GroupScope) -> Unit,
     onManageTypes: () -> Unit,
-    onManageCategories: () -> Unit
+    onManageCategories: () -> Unit,
+    /** true = os dados vêm de uma notificação de banco: ao salvar, é um lançamento novo. */
+    isPrefill: Boolean = false
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var type by remember {
@@ -158,7 +160,7 @@ fun ExpenseSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                if (initial == null) "Novo gasto" else "Editar gasto",
+                if (initial == null) "Novo gasto" else if (isPrefill) "Confirmar gasto" else "Editar gasto",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -306,6 +308,7 @@ fun ExpenseSheet(
                 val last = YearMonth.from(date).plusMonths((installments - 1).toLong())
                 Card(
                     shape = RoundedCornerShape(14.dp),
+                    border = CardBorder,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
@@ -319,10 +322,11 @@ fun ExpenseSheet(
                         Text(
                             "${installments}x de ${perInstallment.toMoney()}",
                             style = MaterialTheme.typography.titleMedium,
+                            fontFamily = MoneyFont,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Text("Total: ${totalCents.toMoney()}")
+                        Text("Total: ${totalCents.toMoney()}", fontFamily = MoneyFont)
                         Text(
                             "1ª em ${date.fmt()} • última em ${last.monthName()} de ${last.year}",
                             style = MaterialTheme.typography.labelSmall,
@@ -391,7 +395,7 @@ fun ExpenseSheet(
                 ) { Text("Salvar e adicionar outro") }
             }
 
-            if (initial != null) {
+            if (initial != null && !isPrefill) {
                 TextButton(
                     onClick = {
                         if (isGrouped) {

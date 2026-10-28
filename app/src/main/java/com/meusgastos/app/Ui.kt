@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,11 +39,19 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -70,7 +79,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -91,6 +102,13 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
+private const val TAB_EXPENSES = 0
+private const val TAB_SUMMARY = 1
+private const val TAB_INCOMES = 2
+
+/** Folha de ganho aberta: [fixed] ou [variable] preenchido = editando; os dois nulos = novo ganho. */
+private data class IncomeSheetState(val fixed: FixedIncome? = null, val variable: Income? = null)
+
 @Composable
 fun HomeScreen(vm: MainViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -100,20 +118,31 @@ fun HomeScreen(vm: MainViewModel) {
     val filters by vm.filters.collectAsStateWithLifecycle()
     val overview by vm.overview.collectAsStateWithLifecycle()
     val monthIncomes by vm.monthIncomes.collectAsStateWithLifecycle()
+    val monthFixed by vm.monthFixedIncomes.collectAsStateWithLifecycle()
+    val summary by vm.monthSummary.collectAsStateWithLifecycle()
     val recurring by vm.recurring.collectAsStateWithLifecycle()
     val history by vm.allExpenses.collectAsStateWithLifecycle()
     val limit by vm.limitCents.collectAsStateWithLifecycle()
     val reminderOn by vm.reminderEnabled.collectAsStateWithLifecycle()
     val reminderHour by vm.reminderHour.collectAsStateWithLifecycle()
+    val pending by vm.pending.collectAsStateWithLifecycle()
+    val captureEnabled by vm.captureEnabled.collectAsStateWithLifecycle()
+    val captureAuto by vm.captureAuto.collectAsStateWithLifecycle()
+    val captureDisabled by vm.captureDisabled.collectAsStateWithLifecycle()
+    val captureTipDismissed by vm.captureTipDismissed.collectAsStateWithLifecycle()
+    val listenerOn = rememberListenerEnabled()
 
     var editing by remember { mutableStateOf<Expense?>(null) }
     var showNew by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
     var showTypes by remember { mutableStateOf(false) }
     var showCategories by remember { mutableStateOf(false) }
-    var showIncomes by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableIntStateOf(TAB_SUMMARY) }
+    var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
     var showRecurring by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showCapture by remember { mutableStateOf(false) }
+    var editingPending by remember { mutableStateOf<PendingTx?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var pendingRestore by remember { mutableStateOf<Uri?>(null) }
     var pendingHour by remember { mutableStateOf(21) }
@@ -156,25 +185,71 @@ fun HomeScreen(vm: MainViewModel) {
         }
     }
 
+    val navColors = NavigationBarItemDefaults.colors(
+        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedTextColor = MaterialTheme.colorScheme.primary
+    )
+    val listState = rememberLazyListState()
+    LaunchedEffect(tab) { listState.scrollToItem(0) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBarItem(
+                    selected = tab == TAB_EXPENSES,
+                    onClick = { tab = TAB_EXPENSES },
+                    colors = navColors,
+                    icon = {
+                        BadgedBox(badge = {
+                            if (pending.isNotEmpty()) Badge { Text(pending.size.toString()) }
+                        }) { Icon(Icons.Default.Receipt, contentDescription = null) }
+                    },
+                    label = { Text("Gastos") }
+                )
+                NavigationBarItem(
+                    selected = tab == TAB_SUMMARY,
+                    onClick = { tab = TAB_SUMMARY },
+                    colors = navColors,
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                    label = { Text("Resumo") }
+                )
+                NavigationBarItem(
+                    selected = tab == TAB_INCOMES,
+                    onClick = { tab = TAB_INCOMES },
+                    colors = navColors,
+                    icon = { Icon(Icons.Default.Payments, contentDescription = null) },
+                    label = { Text("Ganhos") }
+                )
+            }
+        },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showNew = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Novo gasto") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+            if (tab == TAB_INCOMES) {
+                ExtendedFloatingActionButton(
+                    onClick = { incomeSheet = IncomeSheetState() },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Novo ganho") },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                ExtendedFloatingActionButton(
+                    onClick = { showNew = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Novo gasto") },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(padding)) {
+            // Mês e menu: fixos no topo, iguais nas três abas.
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { vm.month.value = month.minusMonths(1) }) {
                         Icon(Icons.Default.ChevronLeft, contentDescription = "Mês anterior")
                     }
@@ -187,7 +262,7 @@ fun HomeScreen(vm: MainViewModel) {
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        val hint = when (state.scope) {
+                        val hint = if (tab != TAB_EXPENSES) null else when (state.scope) {
                             Scope.RANGE -> "Período personalizado"
                             Scope.SEARCH -> "Buscando em todos os meses"
                             Scope.MONTH -> null
@@ -233,6 +308,10 @@ fun HomeScreen(vm: MainViewModel) {
                                 }
                             )
                             DropdownMenuItem(
+                                text = { Text("Captura por notificação") },
+                                onClick = { menuOpen = false; showCapture = true }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Limite e lembrete") },
                                 onClick = { menuOpen = false; showSettings = true }
                             )
@@ -263,14 +342,23 @@ fun HomeScreen(vm: MainViewModel) {
                 }
             }
 
-            item {
-                OverviewCard(
-                    o = overview,
-                    limit = limit.takeIf { it > 0 },
-                    prevLabel = month.minusMonths(1).monthName(),
-                    onIncomeClick = { showIncomes = true }
-                )
-            }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                when (tab) {
+                    // ---------------------------------------------- Gastos: só a lista
+                    TAB_EXPENSES -> {
+                        pendingItems(
+                            pending = pending,
+                            history = history,
+                            onConfirm = { vm.confirmPending(it) },
+                            onConfirmAll = { vm.confirmAllPending() },
+                            onEdit = { editingPending = it },
+                            onDismiss = { vm.dismissPending(it) }
+                        )
 
             item {
                 OutlinedTextField(
@@ -301,26 +389,72 @@ fun HomeScreen(vm: MainViewModel) {
                 )
             }
 
-            item { SummaryCard(state) }
+                        item { ListTotal(state) }
 
-            if (state.items.isEmpty()) {
-                item {
-                    Text(
-                        "Nenhum gasto por aqui.\nToque em \"Novo gasto\" para lançar.",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        if (state.items.isEmpty()) {
+                            item {
+                                Text(
+                                    "Nenhum gasto por aqui.\nToque em \"Novo gasto\" para lançar.",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        items(state.items, key = { it.id }) { e ->
+                            ExpenseRow(e, onClick = { editing = e })
+                        }
+                        item { Spacer(Modifier.height(88.dp)) }
+                    }
+
+                    // ---------------------------------------------- Resumo: o painel do mês
+                    TAB_SUMMARY -> {
+                        captureTip(
+                            show = !listenerOn && !captureTipDismissed,
+                            onEnable = { showCapture = true },
+                            onDismiss = { vm.dismissCaptureTip() }
+                        )
+                        item {
+                            OverviewCard(
+                                o = overview,
+                                limit = limit.takeIf { it > 0 },
+                                prevLabel = month.minusMonths(1).monthName(),
+                                onIncomeClick = { tab = TAB_INCOMES }
+                            )
+                        }
+                        if (summary.total > 0) {
+                            item { SummaryCard(summary) }
+                        } else {
+                            item {
+                                Text(
+                                    "Nenhum gasto neste mês ainda.",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        item { Spacer(Modifier.height(88.dp)) }
+                    }
+
+                    // ---------------------------------------------- Ganhos: fixos e variáveis
+                    else -> {
+                        incomesTab(
+                            month = month,
+                            fixed = monthFixed,
+                            variable = monthIncomes,
+                            onEditFixed = { incomeSheet = IncomeSheetState(fixed = it) },
+                            onEditVariable = { incomeSheet = IncomeSheetState(variable = it) }
+                        )
+                        item { Spacer(Modifier.height(88.dp)) }
+                    }
                 }
             }
-
-            items(state.items, key = { it.id }) { e ->
-                ExpenseRow(e, onClick = { editing = e })
-            }
-
-            item { Spacer(Modifier.height(88.dp)) }
         }
     }
 
@@ -379,6 +513,46 @@ fun HomeScreen(vm: MainViewModel) {
         )
     }
 
+    editingPending?.let { p ->
+        ExpenseSheet(
+            initial = Expense(
+                type = p.type,
+                description = p.description,
+                amountCents = p.amountCents,
+                epochDay = p.epochDay,
+                category = p.category
+            ),
+            types = types,
+            categories = categories,
+            history = history,
+            lastType = vm.lastType,
+            lastCategory = vm.lastCategory,
+            onDismiss = { editingPending = null },
+            onSave = { e, _, _, _ ->
+                vm.confirmPendingEdited(p, e)
+                editingPending = null
+            },
+            onSaveScoped = { _, _ -> },
+            onDelete = {},
+            onDeleteScoped = { _, _ -> },
+            onManageTypes = { showTypes = true },
+            onManageCategories = { showCategories = true },
+            isPrefill = true
+        )
+    }
+
+    if (showCapture) {
+        CaptureDialog(
+            captureEnabled = captureEnabled,
+            auto = captureAuto,
+            disabled = captureDisabled,
+            onEnabled = { vm.setCaptureEnabled(it) },
+            onAuto = { vm.setCaptureAuto(it) },
+            onToggleBank = { pkg, on -> vm.setBankEnabled(pkg, on) },
+            onDismiss = { showCapture = false }
+        )
+    }
+
     if (showFilters) {
         FiltersSheet(
             filters = filters,
@@ -392,13 +566,16 @@ fun HomeScreen(vm: MainViewModel) {
         )
     }
 
-    if (showIncomes) {
-        IncomesSheet(
+    incomeSheet?.let { st ->
+        IncomeSheet(
             month = month,
-            incomes = monthIncomes,
-            onSave = { vm.saveIncome(it) },
-            onDelete = { vm.deleteIncome(it) },
-            onDismiss = { showIncomes = false }
+            editingFixed = st.fixed,
+            editingVariable = st.variable,
+            onSaveVariable = { vm.saveIncome(it) },
+            onDeleteVariable = { vm.deleteIncome(it) },
+            onSaveFixed = { d, c, day, existing -> vm.saveFixedIncome(d, c, day, existing) },
+            onEndFixed = { vm.endFixedIncome(it) },
+            onDismiss = { incomeSheet = null }
         )
     }
 
@@ -484,27 +661,54 @@ fun HomeScreen(vm: MainViewModel) {
     }
 }
 
+/** Linha enxuta no topo da lista de gastos: quanto soma o que está na tela. */
 @Composable
-private fun SummaryCard(state: UiState) {
+private fun ListTotal(state: UiState) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "Total · ${state.items.size} lançamento(s)",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            state.total.toMoney(),
+            style = MaterialTheme.typography.titleMedium,
+            fontFamily = MoneyFont,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun SummaryCard(state: MonthSummary) {
     var byCategory by remember { mutableStateOf(false) }
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "Total da lista",
+                "Gastos do mês",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 state.total.toMoney(),
                 style = MaterialTheme.typography.headlineLarge,
+                fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "${state.items.size} lançamento(s)",
+                "${state.count} lançamento(s)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -535,7 +739,7 @@ private fun SummaryCard(state: UiState) {
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(name, modifier = Modifier.weight(1f))
-                            Text(value.toMoney(), fontWeight = FontWeight.SemiBold)
+                            Text(value.toMoney(), fontFamily = MoneyFont, fontWeight = FontWeight.SemiBold)
                         }
                         LinearProgressIndicator(
                             progress = { value.toFloat() / state.total.toFloat() },
@@ -555,6 +759,7 @@ private fun SummaryCard(state: UiState) {
 
 @Composable
 private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
+    val trackColor = MaterialTheme.colorScheme.outline
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -563,13 +768,23 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
             val strokeWidth = size.minDimension * 0.2f
             val diameter = size.minDimension - strokeWidth
             val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+            drawArc(
+                color = trackColor,
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = Size(diameter, diameter),
+                style = Stroke(width = strokeWidth)
+            )
+            val gap = if (data.size > 1) 2f else 0f
             var start = -90f
             data.forEach { (name, value) ->
                 val sweep = 360f * value.toFloat() / total.toFloat()
                 drawArc(
                     color = categoryColor(name),
-                    startAngle = start,
-                    sweepAngle = sweep,
+                    startAngle = start + gap / 2f,
+                    sweepAngle = (sweep - gap).coerceAtLeast(0.5f),
                     useCenter = false,
                     topLeft = topLeft,
                     size = Size(diameter, diameter),
@@ -597,6 +812,7 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                         )
                         Text(
                             value.toMoney(),
+                            fontFamily = MoneyFont,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -613,7 +829,8 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
     val date = LocalDate.ofEpochDay(e.epochDay)
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
@@ -652,7 +869,7 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text(e.amountCents.toMoney(), fontWeight = FontWeight.Bold)
+            Text(e.amountCents.toMoney(), fontFamily = MoneyFont, fontWeight = FontWeight.Bold)
         }
     }
 }

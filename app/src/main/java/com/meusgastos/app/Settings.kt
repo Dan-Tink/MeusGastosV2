@@ -32,6 +32,33 @@ class Settings(context: Context) {
             prefs.edit().putString("lastType", value).apply()
         }
 
+    /** Liga ou desliga a leitura de notificações de banco (a permissão do sistema é separada). */
+    var captureEnabled: Boolean
+        get() = prefs.getBoolean("captureEnabled", true)
+        set(value) {
+            prefs.edit().putBoolean("captureEnabled", value).apply()
+        }
+
+    /** true = lança sozinho; false (padrão) = deixa em "Pendentes" para você confirmar. */
+    var captureAuto: Boolean
+        get() = prefs.getBoolean("captureAuto", false)
+        set(value) {
+            prefs.edit().putBoolean("captureAuto", value).apply()
+        }
+
+    /** Pacotes de bancos que o usuário desligou. Por padrão, todos os conhecidos ficam ligados. */
+    var captureDisabled: Set<String>
+        get() = HashSet(prefs.getStringSet("captureDisabled", emptySet()) ?: emptySet())
+        set(value) {
+            prefs.edit().putStringSet("captureDisabled", HashSet(value)).apply()
+        }
+
+    var captureTipDismissed: Boolean
+        get() = prefs.getBoolean("captureTipDismissed", false)
+        set(value) {
+            prefs.edit().putBoolean("captureTipDismissed", value).apply()
+        }
+
     var lastCategory: String
         get() = prefs.getString("lastCategory", "") ?: ""
         set(value) {
