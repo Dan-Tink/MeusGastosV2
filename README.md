@@ -28,3 +28,8 @@ App Android (Kotlin + Jetpack Compose + Room) para registrar despesas como numa 
 - Lembrete diário por notificação (só aparece se você ainda não lançou nada no dia).
 - Busca por palavra-chave (em todos os meses) e filtros por tipo, categoria, valor e período.
 - Dados salvos no aparelho (Room/SQLite), sem internet.
+
+## Versão 1.2
+- Novo visual verde (cabeçalho curvo, cartões arredondados, botão "+" central) com tema Automático/Claro/Escuro, salvo entre aberturas (menu ⋮ → Tema).
+- Nova aba **Dívidas**: dívidas sem vencimento, pagamentos parciais com histórico, saldo devedor automático (centavos inteiros), edição segura e exclusão com confirmação. Pagamentos de dívida não viram despesas.
+- Banco migrado de forma não destrutiva (6 → 7) e backup inclui dívidas e pagamentos.

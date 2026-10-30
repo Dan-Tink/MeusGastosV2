@@ -39,6 +39,12 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
@@ -105,6 +111,7 @@ import java.time.ZoneOffset
 private const val TAB_EXPENSES = 0
 private const val TAB_SUMMARY = 1
 private const val TAB_INCOMES = 2
+private const val TAB_DEBTS = 3
 
 /** Folha de ganho aberta: [fixed] ou [variable] preenchido = editando; os dois nulos = novo ganho. */
 private data class IncomeSheetState(val fixed: FixedIncome? = null, val variable: Income? = null)
@@ -120,6 +127,8 @@ fun HomeScreen(vm: MainViewModel) {
     val monthIncomes by vm.monthIncomes.collectAsStateWithLifecycle()
     val monthFixed by vm.monthFixedIncomes.collectAsStateWithLifecycle()
     val summary by vm.monthSummary.collectAsStateWithLifecycle()
+    val debts by vm.debts.collectAsStateWithLifecycle()
+    val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val recurring by vm.recurring.collectAsStateWithLifecycle()
     val history by vm.allExpenses.collectAsStateWithLifecycle()
     val limit by vm.limitCents.collectAsStateWithLifecycle()
@@ -139,6 +148,10 @@ fun HomeScreen(vm: MainViewModel) {
     var showCategories by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(TAB_SUMMARY) }
     var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
+    var showNewDebt by remember { mutableStateOf(false) }
+    var openDebtId by remember { mutableStateOf<Long?>(null) }
+    var debtsOpenFilter by rememberSaveable { mutableStateOf(true) }
+    var showTheme by remember { mutableStateOf(false) }
     var showRecurring by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showCapture by remember { mutableStateOf(false) }
@@ -185,80 +198,53 @@ fun HomeScreen(vm: MainViewModel) {
         }
     }
 
-    val navColors = NavigationBarItemDefaults.colors(
-        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        selectedTextColor = MaterialTheme.colorScheme.primary
-    )
     val listState = rememberLazyListState()
     LaunchedEffect(tab) { listState.scrollToItem(0) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = tab == TAB_EXPENSES,
-                    onClick = { tab = TAB_EXPENSES },
-                    colors = navColors,
-                    icon = {
-                        BadgedBox(badge = {
-                            if (pending.isNotEmpty()) Badge { Text(pending.size.toString()) }
-                        }) { Icon(Icons.Default.Receipt, contentDescription = null) }
-                    },
-                    label = { Text("Gastos") }
-                )
-                NavigationBarItem(
-                    selected = tab == TAB_SUMMARY,
-                    onClick = { tab = TAB_SUMMARY },
-                    colors = navColors,
-                    icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
-                    label = { Text("Resumo") }
-                )
-                NavigationBarItem(
-                    selected = tab == TAB_INCOMES,
-                    onClick = { tab = TAB_INCOMES },
-                    colors = navColors,
-                    icon = { Icon(Icons.Default.Payments, contentDescription = null) },
-                    label = { Text("Ganhos") }
-                )
-            }
-        },
-        floatingActionButton = {
-            if (tab == TAB_INCOMES) {
-                ExtendedFloatingActionButton(
-                    onClick = { incomeSheet = IncomeSheetState() },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Novo ganho") },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                ExtendedFloatingActionButton(
-                    onClick = { showNew = true },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Novo gasto") },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            }
+            AppBottomBar(
+                items = listOf(
+                    NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
+                    NavItem("Resumo", Icons.Outlined.Home, Icons.Filled.Home),
+                    NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
+                    NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
+                ),
+                selected = tab,
+                onSelect = { tab = it },
+                addLabel = when (tab) {
+                    TAB_INCOMES -> "Novo ganho"
+                    TAB_DEBTS -> "Nova dívida"
+                    else -> "Novo gasto"
+                },
+                onAdd = {
+                    when (tab) {
+                        TAB_INCOMES -> incomeSheet = IncomeSheetState()
+                        TAB_DEBTS -> showNewDebt = true
+                        else -> showNew = true
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            // Mês e menu: fixos no topo, iguais nas três abas.
-            Column(Modifier.padding(horizontal = 16.dp)) {
+            // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
+            HeaderBar {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { vm.month.value = month.minusMonths(1) }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "Mês anterior")
+                    if (tab != TAB_DEBTS) {
+                        IconButton(onClick = { vm.month.value = month.minusMonths(1) }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Mês anterior")
+                        }
+                    } else {
+                        Spacer(Modifier.width(48.dp))
                     }
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            month.label(),
+                            if (tab == TAB_DEBTS) "Dívidas" else month.label(),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -271,12 +257,14 @@ fun HomeScreen(vm: MainViewModel) {
                             Text(
                                 hint,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = OnHeaderMuted
                             )
                         }
                     }
-                    IconButton(onClick = { vm.month.value = month.plusMonths(1) }) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Próximo mês")
+                    if (tab != TAB_DEBTS) {
+                        IconButton(onClick = { vm.month.value = month.plusMonths(1) }) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Próximo mês")
+                        }
                     }
                     Box {
                         IconButton(onClick = { menuOpen = true }) {
@@ -310,6 +298,10 @@ fun HomeScreen(vm: MainViewModel) {
                             DropdownMenuItem(
                                 text = { Text("Captura por notificação") },
                                 onClick = { menuOpen = false; showCapture = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Tema (claro ou escuro)") },
+                                onClick = { menuOpen = false; showTheme = true }
                             )
                             DropdownMenuItem(
                                 text = { Text("Limite e lembrete") },
@@ -407,7 +399,7 @@ fun HomeScreen(vm: MainViewModel) {
                         items(state.items, key = { it.id }) { e ->
                             ExpenseRow(e, onClick = { editing = e })
                         }
-                        item { Spacer(Modifier.height(88.dp)) }
+                        item { Spacer(Modifier.height(24.dp)) }
                     }
 
                     // ---------------------------------------------- Resumo: o painel do mês
@@ -439,11 +431,11 @@ fun HomeScreen(vm: MainViewModel) {
                                 )
                             }
                         }
-                        item { Spacer(Modifier.height(88.dp)) }
+                        item { Spacer(Modifier.height(24.dp)) }
                     }
 
                     // ---------------------------------------------- Ganhos: fixos e variáveis
-                    else -> {
+                    TAB_INCOMES -> {
                         incomesTab(
                             month = month,
                             fixed = monthFixed,
@@ -451,7 +443,18 @@ fun HomeScreen(vm: MainViewModel) {
                             onEditFixed = { incomeSheet = IncomeSheetState(fixed = it) },
                             onEditVariable = { incomeSheet = IncomeSheetState(variable = it) }
                         )
-                        item { Spacer(Modifier.height(88.dp)) }
+                        item { Spacer(Modifier.height(24.dp)) }
+                    }
+
+                    // ---------------------------------------------- Dívidas: sem data de vencimento
+                    else -> {
+                        debtsTab(
+                            debts = debts,
+                            showOpen = debtsOpenFilter,
+                            onShowOpen = { debtsOpenFilter = it },
+                            onOpen = { openDebtId = it }
+                        )
+                        item { Spacer(Modifier.height(24.dp)) }
                     }
                 }
             }
@@ -565,6 +568,23 @@ fun HomeScreen(vm: MainViewModel) {
             onDismiss = { showFilters = false }
         )
     }
+
+    if (showTheme) {
+        ThemeDialog(
+            current = themeMode,
+            onSelect = { vm.setThemeMode(it) },
+            onDismiss = { showTheme = false }
+        )
+    }
+
+    DebtFlows(
+        vm = vm,
+        debts = debts,
+        showNew = showNewDebt,
+        onNewDismiss = { showNewDebt = false },
+        openId = openDebtId,
+        onOpenDismiss = { openDebtId = null }
+    )
 
     incomeSheet?.let { st ->
         IncomeSheet(
@@ -848,7 +868,7 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
             ) {
                 Text(
                     date.dayOfMonth.toString().padStart(2, '0'),
-                    color = color,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
             }

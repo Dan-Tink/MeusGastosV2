@@ -59,6 +59,13 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("captureTipDismissed", value).apply()
         }
 
+    /** "system", "light" ou "dark". Guardado como texto para sobreviver a mudanças no app. */
+    var themeMode: String
+        get() = prefs.getString("themeMode", ThemeMode.SYSTEM.key) ?: ThemeMode.SYSTEM.key
+        set(value) {
+            prefs.edit().putString("themeMode", value).apply()
+        }
+
     var lastCategory: String
         get() = prefs.getString("lastCategory", "") ?: ""
         set(value) {

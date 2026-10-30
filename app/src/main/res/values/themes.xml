@@ -1,7 +1,9 @@
 <resources>
-    <style name="Theme.MeusGastos" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#0E131D</item>
-        <item name="android:navigationBarColor">#0E131D</item>
-        <item name="android:windowBackground">#0E131D</item>
+    <!-- Tema claro: usado quando o celular está no modo claro. O app troca de tema por conta própria
+         depois de abrir (MeusGastosTheme); estes valores só evitam um "flash" na abertura. -->
+    <style name="Theme.MeusGastos" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#12873C</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#F1F5F2</item>
     </style>
 </resources>

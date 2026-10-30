@@ -39,6 +39,11 @@ data class Filters(
 
 enum class Scope { MONTH, RANGE, SEARCH }
 
+/** Uma dívida com o que já foi pago e o histórico, pronta para a tela. */
+data class DebtView(val debt: Debt, val paidCents: Long, val payments: List<DebtPayment>) {
+    val status: DebtStatus get() = DebtStatus(debt.originalCents, paidCents)
+}
+
 /** Gastos do mês exibido, sem considerar busca nem filtros: alimenta a aba Resumo. */
 data class MonthSummary(
     val total: Long = 0,
@@ -97,6 +102,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val pending: StateFlow<List<PendingTx>> = dao.observePending()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val themeMode = MutableStateFlow(ThemeMode.from(settings.themeMode))
+
+    fun setThemeMode(mode: ThemeMode) {
+        settings.themeMode = mode.key
+        themeMode.value = mode
+    }
+
     val captureEnabled = MutableStateFlow(settings.captureEnabled)
     val captureAuto = MutableStateFlow(settings.captureAuto)
     val captureDisabled = MutableStateFlow(settings.captureDisabled)
@@ -112,6 +124,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     val lastType: String get() = settings.lastType
     val lastCategory: String get() = settings.lastCategory
+
+    /** Dívidas: separadas das despesas. O "já pago" sai da soma dos pagamentos de cada uma. */
+    val debts: StateFlow<List<DebtView>> =
+        combine(dao.observeDebts(), dao.observeDebtPayments()) { list, payments ->
+            val byDebt = payments.groupBy { it.debtId }
+            list.map { d ->
+                val own = byDebt[d.id].orEmpty()
+                DebtView(d, own.sumOf { it.amountCents }, own)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Ganhos variáveis: valem só no mês em que foram lançados. */
     val monthIncomes: StateFlow<List<Income>> = combine(dao.observeIncomes(), month) { list, m ->
@@ -475,6 +497,25 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             if (newExpenses.isNotEmpty()) dao.insertExpenses(newExpenses)
             onDone(newExpenses.size)
         }
+    }
+
+    // ---------------------------------------------------------------- dívidas
+
+    fun saveDebt(d: Debt) {
+        viewModelScope.launch { if (d.id == 0L) dao.insertDebt(d) else dao.updateDebt(d) }
+    }
+
+    fun deleteDebt(d: Debt) {
+        viewModelScope.launch { dao.deleteDebtWithPayments(d) }
+    }
+
+    /** Registra um pagamento. Devolve o resultado da conferência; se não for OK, nada foi gravado. */
+    fun payDebt(debtId: Long, cents: Long, day: LocalDate, note: String, onResult: (PaymentCheck) -> Unit) {
+        viewModelScope.launch { onResult(dao.payDebt(debtId, cents, day.toEpochDay(), note.trim())) }
+    }
+
+    fun deleteDebtPayment(p: DebtPayment) {
+        viewModelScope.launch { dao.deleteDebtPaymentRow(p) }
     }
 
     // ---------------------------------------------------------------- captura por notificação

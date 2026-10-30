@@ -62,6 +62,8 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
     val incomes = dao.incomesOnce()
     val recurring = dao.recurringOnce()
     val fixedIncomes = dao.fixedIncomesOnce()
+    val debts = dao.debtsOnce()
+    val debtPayments = dao.debtPaymentsOnce()
 
     val root = JSONObject()
     root.put("app", "MeusGastos")
@@ -116,6 +118,29 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("dayOfMonth", it.dayOfMonth)
                 .put("startMonth", it.startMonth)
                 .put("endMonth", it.endMonth ?: JSONObject.NULL)
+        })
+    )
+    // Dívidas e histórico de pagamentos. Os ids ligam cada pagamento à sua dívida.
+    root.put(
+        "debts",
+        JSONArray(debts.map {
+            JSONObject()
+                .put("id", it.id)
+                .put("creditor", it.creditor)
+                .put("description", it.description)
+                .put("originalCents", it.originalCents)
+                .put("createdDay", it.createdDay)
+        })
+    )
+    root.put(
+        "debtPayments",
+        JSONArray(debtPayments.map {
+            JSONObject()
+                .put("id", it.id)
+                .put("debtId", it.debtId)
+                .put("amountCents", it.amountCents)
+                .put("epochDay", it.epochDay)
+                .put("note", it.note)
         })
     )
     return root.toString(2)
@@ -189,7 +214,29 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
                 )
             )
         }
-        dao.replaceAll(types, categories, expenses, incomes, recurring, fixedIncomes)
+        // Backups antigos não têm dívidas: nesse caso as listas ficam vazias.
+        val debts = (root.optJSONArray("debts") ?: JSONArray()).objects().map {
+            Debt(
+                id = it.getLong("id"),
+                creditor = it.getString("creditor"),
+                description = it.optString("description", ""),
+                originalCents = it.getLong("originalCents"),
+                createdDay = it.getLong("createdDay")
+            )
+        }
+        val debtIds = debts.map { it.id }.toSet()
+        val debtPayments = (root.optJSONArray("debtPayments") ?: JSONArray()).objects()
+            .filter { it.getLong("debtId") in debtIds }
+            .map {
+                DebtPayment(
+                    id = it.getLong("id"),
+                    debtId = it.getLong("debtId"),
+                    amountCents = it.getLong("amountCents"),
+                    epochDay = it.getLong("epochDay"),
+                    note = it.optString("note", "")
+                )
+            }
+        dao.replaceAll(types, categories, expenses, incomes, recurring, fixedIncomes, debts, debtPayments)
         true
     } catch (e: Exception) {
         false

@@ -1,0 +1,8 @@
+<resources>
+    <!-- Tema escuro: usado quando o celular está no modo escuro. -->
+    <style name="Theme.MeusGastos" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#0F3A22</item>
+        <item name="android:navigationBarColor">#131C17</item>
+        <item name="android:windowBackground">#0D1411</item>
+    </style>
+</resources>
