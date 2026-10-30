@@ -152,6 +152,7 @@ fun HomeScreen(vm: MainViewModel) {
     var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
     var showNewDebt by remember { mutableStateOf(false) }
     var openDebtId by remember { mutableStateOf<Long?>(null) }
+    var payDebtId by remember { mutableStateOf<Long?>(null) }
     var debtsOpenFilter by rememberSaveable { mutableStateOf(true) }
     var showTheme by remember { mutableStateOf(false) }
     var showRecurring by remember { mutableStateOf(false) }
@@ -458,7 +459,8 @@ fun HomeScreen(vm: MainViewModel) {
                             debts = debts,
                             showOpen = debtsOpenFilter,
                             onShowOpen = { debtsOpenFilter = it },
-                            onOpen = { openDebtId = it }
+                            onOpen = { openDebtId = it },
+                            onPay = { payDebtId = it }
                         )
                         item { Spacer(Modifier.height(24.dp)) }
                     }
@@ -589,7 +591,9 @@ fun HomeScreen(vm: MainViewModel) {
         showNew = showNewDebt,
         onNewDismiss = { showNewDebt = false },
         openId = openDebtId,
-        onOpenDismiss = { openDebtId = null }
+        onOpenDismiss = { openDebtId = null },
+        payRequestId = payDebtId,
+        onPayRequestHandled = { payDebtId = null }
     )
 
     incomeSheet?.let { st ->

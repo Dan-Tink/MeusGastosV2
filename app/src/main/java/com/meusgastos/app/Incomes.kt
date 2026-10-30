@@ -35,6 +35,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -293,16 +294,8 @@ fun IncomeSheet(
 
             if (isNew) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = fixedMode,
-                        onClick = { fixedMode = true },
-                        label = { Text("Fixo · todo mês") }
-                    )
-                    FilterChip(
-                        selected = !fixedMode,
-                        onClick = { fixedMode = false },
-                        label = { Text("Variável · só um mês") }
-                    )
+                    PillChip(fixedMode, { fixedMode = true }, "Fixo · todo mês")
+                    PillChip(!fixedMode, { fixedMode = false }, "Variável · só um mês")
                 }
             }
             Text(
@@ -315,16 +308,17 @@ fun IncomeSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            OutlinedTextField(
+            TextField(
                 value = desc,
                 onValueChange = { desc = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Descrição") },
                 placeholder = { Text(if (fixedMode) "ex.: Salário" else "ex.: Freela") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
-            OutlinedTextField(
+            TextField(
                 value = amount,
                 onValueChange = { amount = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -333,23 +327,26 @@ fun IncomeSheet(
                 prefix = { Text("R$ ") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
             if (fixedMode) {
-                OutlinedTextField(
+                TextField(
                     value = dayText,
                     onValueChange = { dayText = it.filter(Char::isDigit).take(2) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Dia do mês em que cai") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    colors = softFieldColors()
                 )
             } else {
                 OutlinedButton(
                     onClick = { pickDate = true },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    colors = softFieldColors()
                 ) {
                     Icon(Icons.Default.CalendarMonth, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
@@ -385,7 +382,8 @@ fun IncomeSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             ) {
                 Text(
                     when {

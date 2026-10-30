@@ -83,7 +83,8 @@ fun LazyListScope.debtsTab(
     debts: List<DebtView>,
     showOpen: Boolean,
     onShowOpen: (Boolean) -> Unit,
-    onOpen: (Long) -> Unit
+    onOpen: (Long) -> Unit,
+    onPay: (Long) -> Unit = {}
 ) {
     val totals = summarizeDebts(debts.map { it.status })
 
@@ -112,7 +113,7 @@ fun LazyListScope.debtsTab(
         }
     }
     items(shown, key = { "debt-${it.debt.id}" }) { v ->
-        DebtCard(v, onClick = { onOpen(v.debt.id) })
+        DebtCard(v, onClick = { onOpen(v.debt.id) }, onPay = { onPay(v.debt.id) })
     }
 }
 
@@ -204,7 +205,7 @@ private fun StatusChip(settled: Boolean) {
 }
 
 @Composable
-private fun DebtCard(v: DebtView, onClick: () -> Unit) {
+private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
     val st = v.status
     val tint = typeColor(v.debt.creditor)
     Card(
@@ -276,11 +277,24 @@ private fun DebtCard(v: DebtView, onClick: () -> Unit) {
                 color = PositiveColor,
                 trackColor = MaterialTheme.colorScheme.outlineVariant
             )
-            Text(
-                "Pago ${st.paidCents.toMoney()} de ${st.originalCents.toMoney()}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Pago ${st.paidCents.toMoney()} de ${st.originalCents.toMoney()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (!st.settled) {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = onPay,
+                        shape = RoundedCornerShape(50),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 16.dp, vertical = 0.dp
+                        ),
+                        modifier = Modifier.height(36.dp)
+                    ) { Text("Pagar", fontWeight = FontWeight.Bold) }
+                }
+            }
         }
     }
 }
@@ -298,7 +312,9 @@ fun DebtFlows(
     showNew: Boolean,
     onNewDismiss: () -> Unit,
     openId: Long?,
-    onOpenDismiss: () -> Unit
+    onOpenDismiss: () -> Unit,
+    payRequestId: Long? = null,
+    onPayRequestHandled: () -> Unit = {}
 ) {
     val context = LocalContext.current
     fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
@@ -310,6 +326,14 @@ fun DebtFlows(
 
     val open = debts.firstOrNull { it.debt.id == openId }
     val paying = debts.firstOrNull { it.debt.id == payingId }
+
+    // Pedido de "Pagar" vindo direto do cartão da lista.
+    LaunchedEffect(payRequestId) {
+        if (payRequestId != null) {
+            payingId = payRequestId
+            onPayRequestHandled()
+        }
+    }
 
     // A dívida pode sumir (foi excluída): fecha o que dependia dela.
     LaunchedEffect(openId, open) { if (openId != null && open == null) onOpenDismiss() }
