@@ -342,15 +342,24 @@ fun IncomeSheet(
                     colors = softFieldColors()
                 )
             } else {
-                OutlinedButton(
+                androidx.compose.material3.Surface(
                     onClick = { pickDate = true },
-                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    colors = softFieldColors()
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(date.fmt())
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(date.fmt(), fontWeight = FontWeight.Medium)
+                    }
                 }
             }
 
@@ -382,8 +391,7 @@ fun IncomeSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = softFieldColors()
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Text(
                     when {
