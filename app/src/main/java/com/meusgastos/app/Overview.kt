@@ -1,6 +1,16 @@
 package com.meusgastos.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +49,7 @@ fun OverviewCard(
     prevLabel: String,
     onIncomeClick: () -> Unit
 ) {
+    var hidden by rememberSaveable { mutableStateOf(false) }
     val spent = o.spent
     val over = o.balance < 0
     val balanceColor = if (over) MaterialTheme.colorScheme.error else PositiveColor
@@ -62,27 +73,36 @@ fun OverviewCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "SALDO DO MÊS",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    o.balance.toMoney(),
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontFamily = MoneyFont,
-                    fontWeight = FontWeight.Bold,
-                    color = balanceColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Saldo do mês",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (hidden) "R$ ••••••" else o.balance.toMoney(),
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontFamily = MoneyFont,
+                        fontWeight = FontWeight.Bold,
+                        color = balanceColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = { hidden = !hidden }) {
+                    Icon(
+                        if (hidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (hidden) "Mostrar valores" else "Ocultar valores",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            Row(Modifier.fillMaxWidth()) {
-                Tile("Ganhos", o.income, PositiveColor, Modifier.weight(1f), onClick = onIncomeClick)
-                Tile("Gastos fixos", o.fixed, WarningColor, Modifier.weight(1f))
-                Tile("Variáveis", o.variable, AccentViolet, Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Tile("Ganhos", o.income, PositiveColor, hidden, Modifier.weight(1f), onClick = onIncomeClick)
+                Tile("Gastos fixos", o.fixed, WarningColor, hidden, Modifier.weight(1f))
+                Tile("Variáveis", o.variable, AccentViolet, hidden, Modifier.weight(1f))
             }
 
             if (reference != null) {
@@ -93,7 +113,7 @@ fun OverviewCard(
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp)),
                     color = barColor,
-                    trackColor = MaterialTheme.colorScheme.outline
+                    trackColor = MaterialTheme.colorScheme.outlineVariant
                 )
             }
 
@@ -136,25 +156,33 @@ private fun Tile(
     label: String,
     cents: Long,
     color: Color,
+    hidden: Boolean,
     modifier: Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    val base = if (onClick != null) {
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-    } else {
-        modifier
-    }
-    Column(base.padding(4.dp)) {
+    val shape = RoundedCornerShape(14.dp)
+    val base = modifier
+        .clip(shape)
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+    Column(base.padding(horizontal = 10.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Spacer(Modifier.width(6.dp))
             Text(
                 label,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
             if (onClick != null) {
-                Spacer(Modifier.width(2.dp))
                 Icon(
                     Icons.Default.ChevronRight,
                     contentDescription = "Ver ganhos",
@@ -163,12 +191,13 @@ private fun Tile(
                 )
             }
         }
+        Spacer(Modifier.height(4.dp))
         Text(
-            cents.toMoney(),
+            if (hidden) "••••" else cents.toMoney(),
             style = MaterialTheme.typography.titleSmall,
             fontFamily = MoneyFont,
             fontWeight = FontWeight.Bold,
-            color = color,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

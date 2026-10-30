@@ -77,6 +77,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import java.time.YearMonth
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -353,12 +355,13 @@ fun HomeScreen(vm: MainViewModel) {
                         )
 
             item {
-                OutlinedTextField(
+                TextField(
                     value = filters.query,
                     onValueChange = { vm.setQuery(it) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
+                    colors = softFieldColors(),
                     placeholder = { Text("Buscar (ex.: coxinha)") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
@@ -385,19 +388,25 @@ fun HomeScreen(vm: MainViewModel) {
 
                         if (state.items.isEmpty()) {
                             item {
-                                Text(
-                                    "Nenhum gasto por aqui.\nToque em \"Novo gasto\" para lançar.",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 32.dp),
-                                    textAlign = TextAlign.Center,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                EmptyState(
+                                    Icons.Default.Receipt,
+                                    "Nenhum gasto por aqui",
+                                    "Toque no + para lançar o primeiro."
                                 )
                             }
                         }
 
-                        items(state.items, key = { it.id }) { e ->
-                            ExpenseRow(e, onClick = { editing = e })
+                        if (filters.sortByValue) {
+                            items(state.items, key = { it.id }) { e ->
+                                ExpenseRow(e, showDate = true, onClick = { editing = e })
+                            }
+                        } else {
+                            state.items.groupBy { it.epochDay }.forEach { (day, list) ->
+                                item(key = "day-$day") { DayHeader(day, list.sumOf { it.amountCents }) }
+                                items(list, key = { it.id }) { e ->
+                                    ExpenseRow(e, showDate = false, onClick = { editing = e })
+                                }
+                            }
                         }
                         item { Spacer(Modifier.height(24.dp)) }
                     }
@@ -421,13 +430,10 @@ fun HomeScreen(vm: MainViewModel) {
                             item { SummaryCard(summary) }
                         } else {
                             item {
-                                Text(
-                                    "Nenhum gasto neste mês ainda.",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 24.dp),
-                                    textAlign = TextAlign.Center,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                EmptyState(
+                                    Icons.Default.Receipt,
+                                    "Nenhum gasto neste mês",
+                                    "Quando você lançar gastos, o resumo aparece aqui."
                                 )
                             }
                         }
@@ -844,34 +850,87 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
 }
 
 @Composable
-private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
-    val color = typeColor(e.type)
+private fun DayHeader(epochDay: Long, totalCents: Long) {
+    val d = LocalDate.ofEpochDay(epochDay)
+    val today = LocalDate.now()
+    val name = when (d) {
+        today -> "Hoje"
+        today.minusDays(1) -> "Ontem"
+        else -> d.dayOfMonth.toString().padStart(2, '0') + " de " + d.monthValue.let { m ->
+            YearMonth.of(d.year, m).monthName()
+        }
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            name,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            totalCents.toMoney(),
+            style = MaterialTheme.typography.labelLarge,
+            fontFamily = MoneyFont,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** Mensagem de lista vazia: ícone num círculo suave, título e uma linha de ajuda. */
+@Composable
+fun EmptyState(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, hint: String) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(34.dp)
+            )
+        }
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            hint,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun ExpenseRow(e: Expense, showDate: Boolean, onClick: () -> Unit) {
     val date = LocalDate.ofEpochDay(e.epochDay)
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         border = CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    date.dayOfMonth.toString().padStart(2, '0'),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            CategoryBadge(e.category, size = 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -881,7 +940,7 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${e.type} • ${e.category} • ${date.fmt()}",
+                    if (showDate) "${e.category} • ${e.type} • ${date.fmt()}" else "${e.category} • ${e.type}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -889,7 +948,11 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text(e.amountCents.toMoney(), fontFamily = MoneyFont, fontWeight = FontWeight.Bold)
+            Text(
+                e.amountCents.toMoney(),
+                fontFamily = MoneyFont,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

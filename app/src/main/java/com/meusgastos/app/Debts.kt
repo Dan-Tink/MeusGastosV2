@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
@@ -90,34 +91,23 @@ fun LazyListScope.debtsTab(
 
     item(key = "debt-filter") {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = showOpen,
-                onClick = { onShowOpen(true) },
-                label = { Text("Em aberto (${totals.openCount})") }
-            )
-            FilterChip(
-                selected = !showOpen,
-                onClick = { onShowOpen(false) },
-                label = { Text("Quitadas (${totals.settledCount})") }
-            )
+            PillChip(showOpen, { onShowOpen(true) }, "Em aberto (${totals.openCount})")
+            PillChip(!showOpen, { onShowOpen(false) }, "Quitadas (${totals.settledCount})")
         }
     }
 
     val shown = debts.filter { it.status.settled != showOpen }
     if (shown.isEmpty()) {
         item(key = "debt-empty") {
-            Text(
+            EmptyState(
+                androidx.compose.material.icons.Icons.Default.AccountBalanceWallet,
                 when {
-                    debts.isEmpty() ->
-                        "Nenhuma dívida cadastrada.\nToque no + para registrar uma. Não precisa de data de vencimento."
-                    showOpen -> "Você não tem dívidas em aberto."
-                    else -> "Nenhuma dívida quitada ainda."
+                    debts.isEmpty() -> "Nenhuma dívida cadastrada"
+                    showOpen -> "Nenhuma dívida em aberto"
+                    else -> "Nenhuma dívida quitada ainda"
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 28.dp),
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (debts.isEmpty()) "Toque no + para registrar uma. Não precisa de data de vencimento."
+                else "Tudo certo por aqui."
             )
         }
     }
