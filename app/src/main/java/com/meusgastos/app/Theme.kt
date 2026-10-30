@@ -55,7 +55,7 @@ private val LightScheme = lightColorScheme(
     onSecondaryContainer = Color(0xFF083D1B),
     tertiary = Color(0xFF0E7C86),
     onTertiary = Color.White,
-    background = Color(0xFFF1F5F2),
+    background = Color(0xFFF4F6F4),
     onBackground = Color(0xFF0F1A13),
     surface = Color.White,
     onSurface = Color(0xFF0F1A13),
@@ -121,7 +121,7 @@ private val LightAppColors = AppColors(
     positive = Color(0xFF15803D),
     warning = Color(0xFFB45309),
     violet = Color(0xFF6D4FD6),
-    headerBackground = Color(0xFF12873C),
+    headerBackground = Color(0xFF18A649),
     onHeader = Color.White,
     onHeaderMuted = Color.White
 )
@@ -130,9 +130,9 @@ private val DarkAppColors = AppColors(
     positive = Color(0xFF5ADB8F),
     warning = Color(0xFFE6B95C),
     violet = Color(0xFFB4A6F7),
-    headerBackground = Color(0xFF0F3A22),
-    onHeader = Color(0xFFE9F5EC),
-    onHeaderMuted = Color(0xFFB7D3C0)
+    headerBackground = Color(0xFF166A37),
+    onHeader = Color.White,
+    onHeaderMuted = Color(0xFFE3F3E8)
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }

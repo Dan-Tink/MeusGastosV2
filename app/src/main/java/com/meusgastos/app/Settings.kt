@@ -61,7 +61,7 @@ class Settings(context: Context) {
 
     /** "system", "light" ou "dark". Guardado como texto para sobreviver a mudanças no app. */
     var themeMode: String
-        get() = prefs.getString("themeMode", ThemeMode.SYSTEM.key) ?: ThemeMode.SYSTEM.key
+        get() = prefs.getString("themeMode", ThemeMode.LIGHT.key) ?: ThemeMode.LIGHT.key
         set(value) {
             prefs.edit().putString("themeMode", value).apply()
         }

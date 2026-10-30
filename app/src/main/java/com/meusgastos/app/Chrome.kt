@@ -50,12 +50,12 @@ fun HeaderBar(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = HeaderBackground,
         contentColor = OnHeader,
-        shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
+        shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
     ) {
         Column(
             Modifier
                 .padding(horizontal = 8.dp)
-                .padding(top = 4.dp, bottom = 10.dp),
+                .padding(top = 8.dp, bottom = 22.dp),
             content = content
         )
     }
@@ -153,7 +153,7 @@ private fun RowScope.NavTab(item: NavItem, selected: Boolean, onClick: () -> Uni
 fun ThemeDialog(current: ThemeMode, onSelect: (ThemeMode) -> Unit, onDismiss: () -> Unit) {
     val options = listOf(
         Triple(ThemeMode.SYSTEM, "Automático", "Segue o modo claro ou escuro do celular"),
-        Triple(ThemeMode.LIGHT, "Claro", "Fundo claro, cabeçalho verde"),
+        Triple(ThemeMode.LIGHT, "Claro", "Fundo claro, como na referência (padrão)"),
         Triple(ThemeMode.DARK, "Escuro", "Fundo escuro, mais confortável à noite")
     )
     AlertDialog(
