@@ -280,13 +280,13 @@ fun RecurringSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            if (recurring.isEmpty()) {
+            if (recurring.none { !it.isIncome }) {
                 Text(
                     "Nada cadastrado ainda. Ex.: aluguel, internet, salário.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            recurring.forEach { r ->
+            recurring.filter { !it.isIncome }.forEach { r ->
                 Card(
                     onClick = {
                         editing = r
@@ -298,6 +298,7 @@ fun RecurringSheet(
                         dayText = r.dayOfMonth.toString()
                     },
                     shape = RoundedCornerShape(14.dp),
+                    border = CardBorder,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
@@ -326,6 +327,7 @@ fun RecurringSheet(
                         }
                         Text(
                             r.amountCents.toMoney(),
+                            fontFamily = MoneyFont,
                             fontWeight = FontWeight.Bold,
                             color = if (r.isIncome) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface
@@ -341,19 +343,6 @@ fun RecurringSheet(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !isIncome,
-                    onClick = { isIncome = false },
-                    label = { Text("Gasto") }
-                )
-                FilterChip(
-                    selected = isIncome,
-                    onClick = { isIncome = true },
-                    label = { Text("Ganho") }
-                )
-            }
-
             if (!isIncome) {
                 Text(
                     "Tipo",

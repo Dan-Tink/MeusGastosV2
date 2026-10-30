@@ -17,6 +17,7 @@ import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import java.time.YearMonth
 
 @Entity(tableName = "expenses")
 data class Expense(
@@ -51,6 +52,57 @@ data class Income(
     val epochDay: Long
 )
 
+/**
+ * Ganho fixo: vale em todo mês de [startMonth] até [endMonth] (null = sem fim).
+ * Os meses usam o formato "2026-10". Nada é lançado mês a mês: o valor é somado ao mês na hora
+ * de calcular, então ele aparece sozinho em qualquer mês, inclusive nos futuros.
+ */
+@Entity(tableName = "fixed_incomes")
+data class FixedIncome(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val description: String,
+    val amountCents: Long,
+    val dayOfMonth: Int,
+    val startMonth: String,
+    val endMonth: String? = null
+)
+
+/** Este ganho fixo vale no mês [m]? */
+fun FixedIncome.activeIn(m: YearMonth): Boolean {
+    val start = runCatching { YearMonth.parse(startMonth) }.getOrNull() ?: return false
+    val end = endMonth?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+    return !m.isBefore(start) && (end == null || !m.isAfter(end))
+}
+
+/**
+ * Dívida sem data de vencimento (ex.: R$ 300 que devo à minha irmã). Não é uma despesa: os
+ * pagamentos ficam em [DebtPayment] e não entram nos gastos nem nos relatórios do mês.
+ * O "já pago" e o saldo não são guardados aqui: saem da soma dos pagamentos (veja DebtMath.kt).
+ */
+@Entity(tableName = "debts")
+data class Debt(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Pessoa ou instituição a quem devo. */
+    val creditor: String,
+    /** Motivo ou observação. Pode ficar vazio. */
+    val description: String,
+    /** Valor total da dívida, em centavos. */
+    val originalCents: Long,
+    /** Dia do cadastro (epochDay), preenchido sozinho. */
+    val createdDay: Long
+)
+
+/** Um pagamento (parcial ou final) de uma dívida. */
+@Entity(tableName = "debt_payments")
+data class DebtPayment(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val debtId: Long,
+    val amountCents: Long,
+    val epochDay: Long,
+    /** Observação opcional. Pode ficar vazia. */
+    val note: String
+)
+
 /** Gasto ou ganho que se repete todo mês (aluguel, internet, salário...). */
 @Entity(tableName = "recurring")
 data class Recurring(
@@ -64,6 +116,32 @@ data class Recurring(
     /** Último mês já lançado, no formato "2026-10". */
     val lastGenerated: String
 )
+
+/**
+ * Movimentação detectada numa notificação de banco, esperando confirmação.
+ * Só guarda o que foi interpretado (valor, nome, banco); o texto original da notificação é descartado.
+ * Linhas confirmadas ou dispensadas ficam alguns dias, para não lançar duas vezes a mesma notificação.
+ */
+@Entity(tableName = "pending")
+data class PendingTx(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Nome do banco, como "Nubank". */
+    val source: String,
+    val amountCents: Long,
+    val isIncome: Boolean,
+    val description: String,
+    /** "Pix", "Débito", "Crédito", "Boleto" ou "Compra". */
+    val method: String,
+    val epochDay: Long,
+    val createdAt: Long,
+    val type: String,
+    val category: String,
+    /** 0 = esperando, 1 = confirmado, 2 = dispensado. */
+    @ColumnInfo(defaultValue = "0") val status: Int = 0
+)
+
+/** Tipo e categoria do último gasto com a mesma descrição. */
+data class DescMatch(val type: String, val category: String)
 
 @Dao
 abstract class ExpenseDao {
@@ -236,6 +314,186 @@ abstract class ExpenseDao {
         if (categoryExists(newName) > 0) deleteCategory(oldName) else renameCategoryRow(oldName, newName)
     }
 
+    // ---- dívidas ----
+    @Query("SELECT * FROM debts ORDER BY createdDay DESC, id DESC")
+    abstract fun observeDebts(): Flow<List<Debt>>
+
+    @Query("SELECT * FROM debt_payments ORDER BY epochDay DESC, id DESC")
+    abstract fun observeDebtPayments(): Flow<List<DebtPayment>>
+
+    @Query("SELECT * FROM debts")
+    abstract suspend fun debtsOnce(): List<Debt>
+
+    @Query("SELECT * FROM debt_payments")
+    abstract suspend fun debtPaymentsOnce(): List<DebtPayment>
+
+    @Query("SELECT * FROM debts WHERE id = :id")
+    abstract suspend fun debtById(id: Long): Debt?
+
+    @Query("SELECT COALESCE(SUM(amountCents), 0) FROM debt_payments WHERE debtId = :debtId")
+    abstract suspend fun paidOfDebt(debtId: Long): Long
+
+    @Insert
+    abstract suspend fun insertDebt(d: Debt): Long
+
+    @Insert
+    abstract suspend fun insertDebts(list: List<Debt>)
+
+    @Insert
+    abstract suspend fun insertDebtPayment(p: DebtPayment): Long
+
+    @Insert
+    abstract suspend fun insertDebtPayments(list: List<DebtPayment>)
+
+    @Update
+    abstract suspend fun updateDebt(d: Debt)
+
+    @Delete
+    abstract suspend fun deleteDebtRow(d: Debt)
+
+    @Delete
+    abstract suspend fun deleteDebtPaymentRow(p: DebtPayment)
+
+    @Query("DELETE FROM debt_payments WHERE debtId = :debtId")
+    abstract suspend fun deletePaymentsOfDebt(debtId: Long)
+
+    @Query("DELETE FROM debts")
+    abstract suspend fun deleteAllDebts()
+
+    @Query("DELETE FROM debt_payments")
+    abstract suspend fun deleteAllDebtPayments()
+
+    /**
+     * Registra um pagamento. A conferência e a gravação acontecem na mesma transação, então dois
+     * toques seguidos não conseguem passar do saldo. Se algo estiver errado, nada é gravado.
+     */
+    @Transaction
+    open suspend fun payDebt(debtId: Long, amountCents: Long, epochDay: Long, note: String): PaymentCheck {
+        val debt = debtById(debtId) ?: return PaymentCheck.DEBT_NOT_FOUND
+        val check = checkPayment(debt.originalCents, paidOfDebt(debtId), amountCents)
+        if (check == PaymentCheck.OK) {
+            insertDebtPayment(
+                DebtPayment(debtId = debtId, amountCents = amountCents, epochDay = epochDay, note = note)
+            )
+        }
+        return check
+    }
+
+    /** Exclui a dívida junto com o histórico dela. Não mexe em despesas nem em ganhos. */
+    @Transaction
+    open suspend fun deleteDebtWithPayments(d: Debt) {
+        deletePaymentsOfDebt(d.id)
+        deleteDebtRow(d)
+    }
+
+    // ---- ganhos fixos ----
+    @Query("SELECT * FROM fixed_incomes ORDER BY description")
+    abstract fun observeFixedIncomes(): Flow<List<FixedIncome>>
+
+    @Query("SELECT * FROM fixed_incomes")
+    abstract suspend fun fixedIncomesOnce(): List<FixedIncome>
+
+    @Insert
+    abstract suspend fun insertFixedIncome(f: FixedIncome): Long
+
+    @Insert
+    abstract suspend fun insertFixedIncomes(list: List<FixedIncome>)
+
+    @Update
+    abstract suspend fun updateFixedIncome(f: FixedIncome)
+
+    @Delete
+    abstract suspend fun deleteFixedIncome(f: FixedIncome)
+
+    @Query("DELETE FROM fixed_incomes")
+    abstract suspend fun deleteAllFixedIncomes()
+
+    /**
+     * Muda um ganho fixo a partir do mês [from]: os meses anteriores continuam com o valor antigo.
+     * Se o ganho começou em [from] (ou depois), apenas atualiza.
+     */
+    @Transaction
+    open suspend fun reviseFixedIncome(old: FixedIncome, updated: FixedIncome, from: YearMonth) {
+        val start = runCatching { YearMonth.parse(old.startMonth) }.getOrNull() ?: from
+        if (!from.isAfter(start)) {
+            updateFixedIncome(
+                updated.copy(id = old.id, startMonth = old.startMonth, endMonth = old.endMonth)
+            )
+        } else {
+            updateFixedIncome(old.copy(endMonth = from.minusMonths(1).toString()))
+            insertFixedIncome(updated.copy(id = 0, startMonth = from.toString(), endMonth = old.endMonth))
+        }
+    }
+
+    /** Para o ganho fixo a partir do mês [from]. Os meses anteriores continuam contando. */
+    @Transaction
+    open suspend fun endFixedIncome(old: FixedIncome, from: YearMonth) {
+        val start = runCatching { YearMonth.parse(old.startMonth) }.getOrNull() ?: from
+        if (!from.isAfter(start)) {
+            deleteFixedIncome(old)
+        } else {
+            updateFixedIncome(old.copy(endMonth = from.minusMonths(1).toString()))
+        }
+    }
+
+    // ---- captura por notificação ----
+    @Query("SELECT * FROM pending WHERE status = 0 ORDER BY createdAt DESC")
+    abstract fun observePending(): Flow<List<PendingTx>>
+
+    @Insert
+    abstract suspend fun insertPending(p: PendingTx): Long
+
+    /** Muda o status só se ainda estiver esperando. Devolve 0 se outro toque já resolveu. */
+    @Query("UPDATE pending SET status = :status WHERE id = :id AND status = 0")
+    abstract suspend fun claimPending(id: Long, status: Int): Int
+
+    /** Confirma um pendente como veio da notificação. Seguro contra toque duplo. */
+    @Transaction
+    open suspend fun confirmPending(p: PendingTx) {
+        if (claimPending(p.id, 1) == 0) return
+        if (p.isIncome) {
+            insertIncome(Income(description = p.description, amountCents = p.amountCents, epochDay = p.epochDay))
+        } else {
+            insert(
+                Expense(
+                    type = p.type,
+                    description = p.description,
+                    amountCents = p.amountCents,
+                    epochDay = p.epochDay,
+                    category = p.category
+                )
+            )
+        }
+    }
+
+    /** Confirma um pendente usando o gasto que o usuário ajustou na tela de edição. */
+    @Transaction
+    open suspend fun confirmPendingAs(p: PendingTx, e: Expense) {
+        if (claimPending(p.id, 1) == 0) return
+        insert(e.copy(id = 0))
+    }
+
+    @Query(
+        "SELECT COUNT(*) FROM pending WHERE source = :source AND amountCents = :cents " +
+            "AND isIncome = :income AND description = :desc AND createdAt >= :since"
+    )
+    abstract suspend fun countRecentPending(
+        source: String,
+        cents: Long,
+        income: Boolean,
+        desc: String,
+        since: Long
+    ): Int
+
+    @Query("DELETE FROM pending WHERE createdAt < :before AND status <> 0")
+    abstract suspend fun purgePending(before: Long)
+
+    @Query(
+        "SELECT type, category FROM expenses WHERE LOWER(description) = LOWER(:desc) " +
+            "ORDER BY id DESC LIMIT 1"
+    )
+    abstract suspend fun lastForDescription(desc: String): DescMatch?
+
     // ---- restaurar backup ----
     @Query("DELETE FROM expenses")
     abstract suspend fun deleteAllExpenses()
@@ -258,10 +516,16 @@ abstract class ExpenseDao {
         categories: List<Category>,
         expenses: List<Expense>,
         incomes: List<Income>,
-        recurring: List<Recurring>
+        recurring: List<Recurring>,
+        fixedIncomes: List<FixedIncome>,
+        debts: List<Debt>,
+        debtPayments: List<DebtPayment>
     ) {
         deleteAllExpenses()
         deleteAllIncomes()
+        deleteAllFixedIncomes()
+        deleteAllDebtPayments()
+        deleteAllDebts()
         deleteAllRecurring()
         deleteAllTypes()
         deleteAllCategories()
@@ -270,6 +534,9 @@ abstract class ExpenseDao {
         insertExpenses(expenses)
         insertIncomes(incomes)
         insertRecurringList(recurring)
+        insertFixedIncomes(fixedIncomes)
+        insertDebts(debts)
+        insertDebtPayments(debtPayments)
     }
 }
 
@@ -353,9 +620,105 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS pending (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "source TEXT NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "isIncome INTEGER NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "method TEXT NOT NULL, " +
+                "epochDay INTEGER NOT NULL, " +
+                "createdAt INTEGER NOT NULL, " +
+                "type TEXT NOT NULL, " +
+                "category TEXT NOT NULL, " +
+                "status INTEGER NOT NULL DEFAULT 0)"
+        )
+    }
+}
+
+/**
+ * Ganhos recorrentes antigos viram ganhos fixos. O ganho já lançado no último mês gerado vira o
+ * primeiro mês do ganho fixo (para não contar duas vezes); se ele não existir mais, o ganho fixo
+ * começa no mês seguinte. Meses anteriores continuam como estavam.
+ */
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS fixed_incomes (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "dayOfMonth INTEGER NOT NULL, " +
+                "startMonth TEXT NOT NULL, " +
+                "endMonth TEXT)"
+        )
+
+        class Old(val description: String, val cents: Long, val day: Int, val last: String)
+
+        val olds = ArrayList<Old>()
+        db.query(
+            "SELECT description, amountCents, dayOfMonth, lastGenerated FROM recurring WHERE isIncome = 1"
+        ).use { c ->
+            while (c.moveToNext()) olds.add(Old(c.getString(0), c.getLong(1), c.getInt(2), c.getString(3)))
+        }
+
+        for (o in olds) {
+            val last = runCatching { YearMonth.parse(o.last) }.getOrNull() ?: YearMonth.now()
+            val from = last.atDay(1).toEpochDay()
+            val to = last.atEndOfMonth().toEpochDay()
+            val existing: Long? = db.query(
+                "SELECT id FROM incomes WHERE description = ? AND amountCents = ? " +
+                    "AND epochDay BETWEEN ? AND ? LIMIT 1",
+                arrayOf<Any?>(o.description, o.cents, from, to)
+            ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+
+            val start = if (existing != null) {
+                db.execSQL("DELETE FROM incomes WHERE id = ?", arrayOf<Any?>(existing))
+                last
+            } else {
+                last.plusMonths(1)
+            }
+            db.execSQL(
+                "INSERT INTO fixed_incomes(description, amountCents, dayOfMonth, startMonth, endMonth) " +
+                    "VALUES (?, ?, ?, ?, NULL)",
+                arrayOf<Any?>(o.description, o.cents, o.day, start.toString())
+            )
+        }
+        db.execSQL("DELETE FROM recurring WHERE isIncome = 1")
+    }
+}
+
+/** Só cria as tabelas das dívidas. Nenhum dado existente é lido, alterado ou apagado. */
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS debts (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "creditor TEXT NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "originalCents INTEGER NOT NULL, " +
+                "createdDay INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS debt_payments (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "debtId INTEGER NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "epochDay INTEGER NOT NULL, " +
+                "note TEXT NOT NULL)"
+        )
+    }
+}
+
 @Database(
-    entities = [Expense::class, ExpenseType::class, Category::class, Income::class, Recurring::class],
-    version = 4,
+    entities = [
+        Expense::class, ExpenseType::class, Category::class, Income::class,
+        Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class
+    ],
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -371,7 +734,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

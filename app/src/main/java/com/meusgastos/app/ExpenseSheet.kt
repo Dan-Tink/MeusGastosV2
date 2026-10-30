@@ -13,6 +13,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -68,7 +86,9 @@ fun ExpenseSheet(
     onDelete: (Expense) -> Unit,
     onDeleteScoped: (Expense, GroupScope) -> Unit,
     onManageTypes: () -> Unit,
-    onManageCategories: () -> Unit
+    onManageCategories: () -> Unit,
+    /** true = os dados vêm de uma notificação de banco: ao salvar, é um lançamento novo. */
+    isPrefill: Boolean = false
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var type by remember {
@@ -143,272 +163,371 @@ fun ExpenseSheet(
         installmentCount = initial?.installmentCount ?: 0
     )
 
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        if (initial == null) {
+            kotlinx.coroutines.delay(350)
+            runCatching { focus.requestFocus() }
+            keyboard?.show()
+        }
+    }
+    val parcelar = initial == null && (installments > 1 || showCustom)
+    val amountLabel = when {
+        isGrouped -> "Valor da parcela"
+        initial == null && installments > 1 && amountIsTotal -> "Valor total"
+        initial == null && installments > 1 -> "Valor da parcela"
+        else -> "Valor"
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(
-                if (initial == null) "Novo gasto" else "Editar gasto",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            if (isGrouped && initial != null) {
-                Text(
-                    "Parcela ${initial.installmentNo} de ${initial.installmentCount}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            SheetLabel("Tipo")
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+        Column(Modifier.fillMaxWidth().imePadding()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                types.forEach { t ->
-                    FilterChip(
-                        selected = type == t.name,
-                        onClick = { type = t.name },
-                        label = { Text(t.name) }
-                    )
-                }
-                AssistChip(onClick = onManageTypes, label = { Text("+ Tipo") })
-            }
-
-            SheetLabel("Categoria")
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                categories.forEach { c ->
-                    FilterChip(
-                        selected = category == c.name,
-                        onClick = { category = c.name },
-                        label = { Text(c.name) }
-                    )
-                }
-                AssistChip(onClick = onManageCategories, label = { Text("+ Categoria") })
-            }
-
-            OutlinedTextField(
-                value = desc,
-                onValueChange = { desc = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Descrição") },
-                placeholder = { Text("ex.: comprei uma coxinha") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp)
-            )
-            if (suggestions.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                // ---- Título e valor em destaque ----
+                Column(
+                    Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    suggestions.forEach { s ->
-                        AssistChip(
-                            onClick = {
-                                desc = s.description
-                                if (types.any { it.name == s.type }) type = s.type
-                                if (categories.any { it.name == s.category }) category = s.category
-                                if (amount.isBlank()) amount = s.amountCents.toPlain()
-                            },
-                            label = { Text(s.description) }
-                        )
-                    }
-                }
-            }
-
-            // ---- Pagamento: à vista ou parcelado (só em gasto novo) ----
-            if (initial == null) {
-                SheetLabel("Pagamento")
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    FilterChip(
-                        selected = installments == 1 && !showCustom,
-                        onClick = { instText = "1"; showCustom = false },
-                        label = { Text("À vista") }
-                    )
-                    InstallmentPresets.forEach { n ->
-                        FilterChip(
-                            selected = installments == n && !showCustom,
-                            onClick = { instText = n.toString(); showCustom = false },
-                            label = { Text("${n}x") }
-                        )
-                    }
-                    FilterChip(
-                        selected = showCustom,
-                        onClick = { showCustom = true },
-                        label = { Text("Outro") }
-                    )
-                }
-                if (showCustom) {
-                    OutlinedTextField(
-                        value = instText,
-                        onValueChange = { instText = it.filter(Char::isDigit).take(3) },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Número de parcelas") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                }
-                if (installments > 1) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = !amountIsTotal,
-                            onClick = { amountIsTotal = false },
-                            label = { Text("Valor da parcela") }
-                        )
-                        FilterChip(
-                            selected = amountIsTotal,
-                            onClick = { amountIsTotal = true },
-                            label = { Text("Valor total") }
-                        )
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = {
                     Text(
-                        when {
-                            isGrouped -> "Valor da parcela"
-                            initial == null && installments > 1 && amountIsTotal -> "Valor total"
-                            initial == null && installments > 1 -> "Valor da parcela"
-                            else -> "Valor"
-                        }
+                        if (initial == null) "Novo gasto" else if (isPrefill) "Confirmar gasto" else "Editar gasto",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                },
-                placeholder = { Text("4,50") },
-                prefix = { Text("R$ ") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(14.dp)
-            )
-
-            // ---- Resumo ao vivo do parcelamento ----
-            if (initial == null && installments > 1 && perInstallment != null && totalCents != null) {
-                val last = YearMonth.from(date).plusMonths((installments - 1).toLong())
-                Card(
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
+                    if (isGrouped && initial != null) {
                         Text(
-                            "${installments}x de ${perInstallment.toMoney()}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            "Parcela ${initial.installmentNo} de ${initial.installmentCount}",
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Text("Total: ${totalCents.toMoney()}")
-                        Text(
-                            "1ª em ${date.fmt()} • última em ${last.monthName()} de ${last.year}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (firstExtra > 0) {
+                    }
+                    TextField(
+                        value = amount,
+                        onValueChange = { amount = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focus),
+                        textStyle = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        placeholder = {
                             Text(
-                                "A 1ª parcela leva ${firstExtra.toMoney()} a mais (centavos da divisão).",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                "0,00",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        )
+                    )
+                    Text(
+                        "$amountLabel (R$)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // ---- Tipo: controle segmentado ----
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        SheetLabel("Tipo", Modifier.weight(1f))
+                        ManageLink(onManageTypes)
+                    }
+                    if (types.size in 1..3) {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            types.forEachIndexed { i, t ->
+                                SegmentedButton(
+                                    selected = type == t.name,
+                                    onClick = { type = t.name },
+                                    shape = SegmentedButtonDefaults.itemShape(i, types.size),
+                                    icon = {},
+                                    colors = SegmentedButtonDefaults.colors(
+                                        activeContainerColor = MaterialTheme.colorScheme.primary,
+                                        activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                                        activeBorderColor = Color.Transparent,
+                                        inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                        inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                                        inactiveBorderColor = Color.Transparent
+                                    )
+                                ) { Text(t.name, maxLines = 1) }
+                            }
+                        }
+                    } else {
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            types.forEach { t ->
+                                PillChip(type == t.name, { type = t.name }, t.name)
+                            }
+                        }
+                    }
+                }
+
+                // ---- Categoria: grade de ícones ----
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        SheetLabel("Categoria", Modifier.weight(1f))
+                        ManageLink(onManageCategories)
+                    }
+                    categories.chunked(4).forEach { row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            row.forEach { c ->
+                                val sel = category == c.name
+                                Column(
+                                    Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .selectable(
+                                            selected = sel,
+                                            role = Role.RadioButton,
+                                            onClick = { category = c.name }
+                                        )
+                                        .padding(vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    CategoryBadge(c.name, size = 44.dp, selected = sel)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        c.name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+
+                // ---- Descrição e data ----
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextField(
+                        value = desc,
+                        onValueChange = { desc = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Descrição (ex.: coxinha)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = softFieldColors()
+                    )
+                    if (suggestions.isNotEmpty()) {
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            suggestions.forEach { s ->
+                                PillChip(false, {
+                                    desc = s.description
+                                    if (types.any { it.name == s.type }) type = s.type
+                                    if (categories.any { it.name == s.category }) category = s.category
+                                    if (amount.isBlank()) amount = s.amountCents.toPlain()
+                                }, s.description)
+                            }
+                        }
+                    }
+                    Surface(
+                        onClick = { pickDate = true },
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                if (initial == null && installments > 1) "1ª parcela em ${date.fmt()}"
+                                else date.fmt(),
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
                 }
-            }
 
-            OutlinedButton(
-                onClick = { pickDate = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (initial == null && installments > 1) "1ª parcela em ${date.fmt()}" else date.fmt())
-            }
-
-            if (isGrouped) {
-                Text(
-                    "Ao salvar, você escolhe se vale só para esta parcela, para as próximas ou para todas.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Button(
-                onClick = {
-                    if (isGrouped) {
-                        scopeAction = ScopeAction.SAVE
-                    } else {
-                        onSave(buildExpense(), installments, amountIsTotal, false)
+                // ---- Pagamento: à vista ou parcelado (só em gasto novo) ----
+                if (initial == null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SheetLabel("Pagamento", Modifier.weight(1f))
+                            PillChip(!parcelar, { instText = "1"; showCustom = false }, "À vista")
+                            PillChip(parcelar, {
+                                if (!parcelar) instText = "2"
+                            }, "Parcelar")
+                        }
+                        if (parcelar) {
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                InstallmentPresets.forEach { n ->
+                                    PillChip(installments == n && !showCustom, {
+                                        instText = n.toString(); showCustom = false
+                                    }, "${n}x")
+                                }
+                                PillChip(showCustom, { showCustom = true }, "Outro")
+                            }
+                            if (showCustom) {
+                                TextField(
+                                    value = instText,
+                                    onValueChange = { instText = it.filter(Char::isDigit).take(3) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("Número de parcelas") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = softFieldColors()
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                PillChip(!amountIsTotal, { amountIsTotal = false }, "Valor da parcela")
+                                PillChip(amountIsTotal, { amountIsTotal = true }, "Valor total")
+                            }
+                        }
                     }
-                },
-                enabled = valid,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(if (initial == null && installments > 1) "Lançar $installments parcelas" else "Salvar")
+                }
+
+                // ---- Resumo ao vivo do parcelamento ----
+                if (initial == null && installments > 1 && perInstallment != null && totalCents != null) {
+                    val last = YearMonth.from(date).plusMonths((installments - 1).toLong())
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "${installments}x de ${perInstallment.toMoney()}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = MoneyFont,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text("Total: ${totalCents.toMoney()}", fontFamily = MoneyFont)
+                            Text(
+                                "1ª em ${date.fmt()} • última em ${last.monthName()} de ${last.year}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            if (firstExtra > 0) {
+                                Text(
+                                    "A 1ª parcela leva ${firstExtra.toMoney()} a mais (centavos da divisão).",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (isGrouped) {
+                    Text(
+                        "Ao salvar, você escolhe se vale só para esta parcela, para as próximas ou para todas.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (initial != null && !isPrefill) {
+                    TextButton(
+                        onClick = {
+                            if (isGrouped) {
+                                scopeAction = ScopeAction.DELETE
+                            } else {
+                                confirmDelete = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Excluir gasto", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
             }
 
-            if (initial == null) {
-                OutlinedButton(
+            // ---- Ações sempre visíveis no rodapé ----
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Button(
                     onClick = {
-                        onSave(buildExpense(), installments, amountIsTotal, true)
-                        desc = ""
-                        amount = ""
-                        instText = "1"
-                        showCustom = false
+                        if (isGrouped) {
+                            scopeAction = ScopeAction.SAVE
+                        } else {
+                            onSave(buildExpense(), installments, amountIsTotal, false)
+                        }
                     },
                     enabled = valid,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("Salvar e adicionar outro") }
-            }
-
-            if (initial != null) {
-                TextButton(
-                    onClick = {
-                        if (isGrouped) {
-                            scopeAction = ScopeAction.DELETE
-                        } else {
-                            confirmDelete = true
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
+                    Text(
+                        if (initial == null && installments > 1) "Lançar $installments parcelas" else "Salvar",
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Excluir gasto", color = MaterialTheme.colorScheme.error)
+                }
+                if (initial == null) {
+                    TextButton(
+                        onClick = {
+                            onSave(buildExpense(), installments, amountIsTotal, true)
+                            desc = ""
+                            amount = ""
+                            instText = "1"
+                            showCustom = false
+                        },
+                        enabled = valid
+                    ) { Text("Salvar e adicionar outro") }
                 }
             }
         }
@@ -455,9 +574,10 @@ fun ExpenseSheet(
 }
 
 @Composable
-private fun SheetLabel(text: String) {
+private fun SheetLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
+        modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -502,5 +622,20 @@ private fun ScopeDialog(
         },
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+/** Link discreto "Gerenciar" ao lado do título de uma seção. */
+@Composable
+private fun ManageLink(onClick: () -> Unit) {
+    Text(
+        "Gerenciar",
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     )
 }

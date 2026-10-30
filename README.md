@@ -11,7 +11,12 @@ App Android (Kotlin + Jetpack Compose + Room) para registrar despesas como numa 
 
 ## O que o app faz
 
-- Painel do mês no topo: ganhos, gastos fixos, gastos variáveis e saldo, atualizados sozinhos.
+- Três abas: **Gastos** (só a lista, busca e filtros), **Resumo** (saldo do mês, ganhos, gastos fixos e
+  variáveis, para onde foi o dinheiro) e **Ganhos**.
+- Ganhos fixos (valem todo mês, sozinhos, até você parar; mudar o valor vale do mês atual em diante) e
+  ganhos variáveis (valem só no mês em que foram lançados).
+- Captura por notificação: lê as notificações de apps de banco e sugere cada compra, Pix ou pagamento em
+  "Pendentes" para você confirmar (ou lança sozinho, se você ligar). Menu > Captura por notificação.
 - Comparação com o mesmo trecho do mês anterior e limite de gastos do mês (barra muda de cor em 80% e 100%).
 - Lançamento rápido: tipo, categoria, descrição e valor; lembra o último tipo/categoria, sugere
   descrições já usadas e tem "Salvar e adicionar outro".
@@ -23,3 +28,8 @@ App Android (Kotlin + Jetpack Compose + Room) para registrar despesas como numa 
 - Lembrete diário por notificação (só aparece se você ainda não lançou nada no dia).
 - Busca por palavra-chave (em todos os meses) e filtros por tipo, categoria, valor e período.
 - Dados salvos no aparelho (Room/SQLite), sem internet.
+
+## Versão 1.2
+- Novo visual verde (cabeçalho curvo, cartões arredondados, botão "+" central) com tema Automático/Claro/Escuro, salvo entre aberturas (menu ⋮ → Tema).
+- Nova aba **Dívidas**: dívidas sem vencimento, pagamentos parciais com histórico, saldo devedor automático (centavos inteiros), edição segura e exclusão com confirmação. Pagamentos de dívida não viram despesas.
+- Banco migrado de forma não destrutiva (6 → 7) e backup inclui dívidas e pagamentos.
