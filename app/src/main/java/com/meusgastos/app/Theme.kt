@@ -20,6 +20,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -159,8 +161,16 @@ val OnHeader: Color
 val OnHeaderMuted: Color
     @Composable @ReadOnlyComposable get() = LocalAppColors.current.onHeaderMuted
 
-/** Fonte dos valores em dinheiro. Sem fonte própria: usa a do sistema, como na referência. */
-val MoneyFont: FontFamily = FontFamily.Default
+/** Inter (licença SIL OFL), em quatro pesos. Números tabulares: os valores se alinham em coluna. */
+val AppFont: FontFamily = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold)
+)
+
+/** Fonte dos valores em dinheiro. */
+val MoneyFont: FontFamily get() = AppFont
 
 /** Borda fina e discreta dos cartões, no lugar de sombras pesadas. */
 val CardBorder: BorderStroke
@@ -176,12 +186,25 @@ private val AppShapes = Shapes(
 
 private val Base = Typography()
 
-// Títulos mais firmes e rótulos pequenos com um pouco de respiro entre as letras.
+private fun TextStyle.app(): TextStyle = copy(fontFamily = AppFont, fontFeatureSettings = "tnum")
+
+// Inter em tudo, com números tabulares. Títulos mais firmes e rótulos pequenos com respiro.
 private val AppTypography = Typography(
-    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold),
-    titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
-    labelSmall = Base.labelSmall.copy(letterSpacing = 0.4.sp)
+    displayLarge = Base.displayLarge.app(),
+    displayMedium = Base.displayMedium.app(),
+    displaySmall = Base.displaySmall.app(),
+    headlineLarge = Base.headlineLarge.app(),
+    headlineMedium = Base.headlineMedium.app(),
+    headlineSmall = Base.headlineSmall.app(),
+    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold).app(),
+    titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.SemiBold).app(),
+    titleSmall = Base.titleSmall.app(),
+    bodyLarge = Base.bodyLarge.app(),
+    bodyMedium = Base.bodyMedium.app(),
+    bodySmall = Base.bodySmall.app(),
+    labelLarge = Base.labelLarge.app(),
+    labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp).app(),
+    labelSmall = Base.labelSmall.copy(letterSpacing = 0.4.sp).app()
 )
 
 // Cores de gráficos e marcadores: tons médios que passam de 3:1 tanto no fundo branco quanto

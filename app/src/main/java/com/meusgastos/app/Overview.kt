@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,8 +69,8 @@ fun OverviewCard(
     }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
-        border = CardBorder,
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -81,7 +82,7 @@ fun OverviewCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        if (hidden) "R$ ••••••" else o.balance.toMoney(),
+                        if (hidden) AnnotatedString("R$ ••••••") else moneyAnnotated(o.balance),
                         style = MaterialTheme.typography.headlineLarge,
                         fontFamily = MoneyFont,
                         fontWeight = FontWeight.Bold,

@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Payments
@@ -93,6 +95,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -210,7 +213,7 @@ fun HomeScreen(vm: MainViewModel) {
             AppBottomBar(
                 items = listOf(
                     NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
-                    NavItem("Resumo", Icons.Outlined.Home, Icons.Filled.Home),
+                    NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
                     NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
                     NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
                 ),
@@ -233,7 +236,7 @@ fun HomeScreen(vm: MainViewModel) {
     ) { padding ->
         Column(Modifier.padding(padding)) {
             // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
-            HeaderBar {
+            HeaderBar(extraBottom = if (tab == TAB_SUMMARY) 44.dp else 0.dp) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (tab != TAB_DEBTS) {
                         IconButton(onClick = { vm.month.value = month.minusMonths(1) }) {
@@ -337,6 +340,26 @@ fun HomeScreen(vm: MainViewModel) {
                 }
             }
 
+            // Cartão de saldo: metade sobre o verde do cabeçalho, metade sobre o fundo.
+            if (tab == TAB_SUMMARY) {
+                Box(
+                    Modifier
+                        .padding(horizontal = 16.dp)
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            val up = 44.dp.roundToPx()
+                            layout(placeable.width, placeable.height - up) { placeable.place(0, -up) }
+                        }
+                ) {
+                    OverviewCard(
+                        o = overview,
+                        limit = limit.takeIf { it > 0 },
+                        prevLabel = month.minusMonths(1).monthName(),
+                        onIncomeClick = { tab = TAB_INCOMES }
+                    )
+                }
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
@@ -419,14 +442,6 @@ fun HomeScreen(vm: MainViewModel) {
                             onEnable = { showCapture = true },
                             onDismiss = { vm.dismissCaptureTip() }
                         )
-                        item {
-                            OverviewCard(
-                                o = overview,
-                                limit = limit.takeIf { it > 0 },
-                                prevLabel = month.minusMonths(1).monthName(),
-                                onIncomeClick = { tab = TAB_INCOMES }
-                            )
-                        }
                         if (summary.total > 0) {
                             item { SummaryCard(summary) }
                         } else {
@@ -711,14 +726,14 @@ private fun ListTotal(state: UiState) {
             style = MaterialTheme.typography.titleMedium,
             fontFamily = MoneyFont,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
 @Composable
 private fun SummaryCard(state: MonthSummary) {
-    var byCategory by remember { mutableStateOf(false) }
+    var byCategory by remember { mutableStateOf(true) }
     Card(
         shape = RoundedCornerShape(16.dp),
         border = CardBorder,
@@ -726,19 +741,15 @@ private fun SummaryCard(state: MonthSummary) {
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "Gastos do mês",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Para onde foi o dinheiro",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
+            val top = state.byCategory.firstOrNull()
             Text(
-                state.total.toMoney(),
-                style = MaterialTheme.typography.headlineLarge,
-                fontFamily = MoneyFont,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "${state.count} lançamento(s)",
+                if (top != null && state.total > 0)
+                    "${state.count} lançamento(s) · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
+                else "${state.count} lançamento(s)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

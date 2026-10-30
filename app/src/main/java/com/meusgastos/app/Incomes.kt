@@ -126,7 +126,7 @@ private fun IncomeTotalCard(month: YearMonth, fixedTotal: Long, variableTotal: L
                 textAlign = TextAlign.Center
             )
             Text(
-                (fixedTotal + variableTotal).toMoney(),
+                moneyAnnotated(fixedTotal + variableTotal),
                 style = MaterialTheme.typography.headlineLarge,
                 fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,

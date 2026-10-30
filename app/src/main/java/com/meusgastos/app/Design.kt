@@ -28,7 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.dp
 
 // ---------------------------------------------------------------------------------------
@@ -103,3 +108,17 @@ fun softFieldColors() = TextFieldDefaults.colors(
     disabledIndicatorColor = Color.Transparent,
     errorIndicatorColor = MaterialTheme.colorScheme.error
 )
+
+/** Valor em reais com os centavos menores ("R$ 1.820" grande e ",00" pequeno). */
+fun moneyAnnotated(cents: Long, centsScale: Float = 0.6f): AnnotatedString {
+    val t = cents.toMoney()
+    val i = t.lastIndexOf(',')
+    return buildAnnotatedString {
+        if (i < 0) {
+            append(t)
+        } else {
+            append(t.substring(0, i))
+            withStyle(SpanStyle(fontSize = centsScale.em)) { append(t.substring(i)) }
+        }
+    }
+}

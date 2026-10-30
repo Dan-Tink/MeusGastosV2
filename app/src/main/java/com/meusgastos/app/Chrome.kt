@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // ---------------------------------------------------------------------------------------
@@ -46,7 +47,7 @@ import androidx.compose.ui.unit.dp
 
 /** Cabeçalho verde de cantos curvos embaixo. O conteúdo recebe a cor de texto do cabeçalho. */
 @Composable
-fun HeaderBar(content: @Composable ColumnScope.() -> Unit) {
+fun HeaderBar(extraBottom: Dp = 0.dp, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = HeaderBackground,
         contentColor = OnHeader,
@@ -55,7 +56,7 @@ fun HeaderBar(content: @Composable ColumnScope.() -> Unit) {
         Column(
             Modifier
                 .padding(horizontal = 8.dp)
-                .padding(top = 8.dp, bottom = 22.dp),
+                .padding(top = 8.dp, bottom = 22.dp + extraBottom),
             content = content
         )
     }

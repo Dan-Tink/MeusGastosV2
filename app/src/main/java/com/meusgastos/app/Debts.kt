@@ -137,7 +137,7 @@ private fun DebtSummaryCard(t: DebtTotals) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                t.openBalanceCents.toMoney(),
+                moneyAnnotated(t.openBalanceCents),
                 style = MaterialTheme.typography.headlineLarge,
                 fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,
@@ -207,7 +207,7 @@ private fun StatusChip(settled: Boolean) {
 @Composable
 private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
     val st = v.status
-    val tint = typeColor(v.debt.creditor)
+    val tint = MaterialTheme.colorScheme.primary
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
