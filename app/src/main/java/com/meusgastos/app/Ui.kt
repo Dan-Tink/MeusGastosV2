@@ -740,16 +740,8 @@ private fun SummaryCard(state: MonthSummary) {
             )
             if (state.total > 0) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = !byCategory,
-                        onClick = { byCategory = false },
-                        label = { Text("Por tipo") }
-                    )
-                    FilterChip(
-                        selected = byCategory,
-                        onClick = { byCategory = true },
-                        label = { Text("Por categoria") }
-                    )
+                    PillChip(!byCategory, { byCategory = false }, "Por tipo")
+                    PillChip(byCategory, { byCategory = true }, "Por categoria")
                 }
                 if (byCategory) {
                     CategoryDonut(state.byCategory, state.total)
@@ -769,12 +761,14 @@ private fun SummaryCard(state: MonthSummary) {
                         }
                         LinearProgressIndicator(
                             progress = { value.toFloat() / state.total.toFloat() },
+                            gapSize = 0.dp,
+                            drawStopIndicator = {},
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
                                 .clip(RoundedCornerShape(3.dp)),
                             color = color,
-                            trackColor = MaterialTheme.colorScheme.outline
+                            trackColor = MaterialTheme.colorScheme.outlineVariant
                         )
                     }
                 }
@@ -785,7 +779,7 @@ private fun SummaryCard(state: MonthSummary) {
 
 @Composable
 private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
-    val trackColor = MaterialTheme.colorScheme.outline
+    val trackColor = MaterialTheme.colorScheme.outlineVariant
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)

@@ -267,6 +267,8 @@ private fun DebtCard(v: DebtView, onClick: () -> Unit) {
             }
             LinearProgressIndicator(
                 progress = { st.progress },
+                gapSize = 0.dp,
+                drawStopIndicator = {},
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
@@ -484,6 +486,8 @@ private fun DebtDetailSheet(
                     }
                     LinearProgressIndicator(
                         progress = { st.progress },
+                        gapSize = 0.dp,
+                        drawStopIndicator = {},
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)

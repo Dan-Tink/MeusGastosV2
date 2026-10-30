@@ -108,6 +108,8 @@ fun OverviewCard(
             if (reference != null) {
                 LinearProgressIndicator(
                     progress = { ratio },
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)

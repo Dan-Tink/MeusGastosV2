@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.SegmentedButton
@@ -162,8 +164,13 @@ fun ExpenseSheet(
     )
 
     val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
-        if (initial == null) runCatching { focus.requestFocus() }
+        if (initial == null) {
+            kotlinx.coroutines.delay(350)
+            runCatching { focus.requestFocus() }
+            keyboard?.show()
+        }
     }
     val parcelar = initial == null && (installments > 1 || showCustom)
     val amountLabel = when {
@@ -185,7 +192,7 @@ fun ExpenseSheet(
                     .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // ---- Título e valor em destaque ----
                 Column(
@@ -226,13 +233,6 @@ fun ExpenseSheet(
                                 color = MaterialTheme.colorScheme.outline
                             )
                         },
-                        prefix = {
-                            Text(
-                                "R$ ",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = TextFieldDefaults.colors(
@@ -243,7 +243,7 @@ fun ExpenseSheet(
                         )
                     )
                     Text(
-                        amountLabel,
+                        "$amountLabel (R$)",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -253,7 +253,7 @@ fun ExpenseSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         SheetLabel("Tipo", Modifier.weight(1f))
-                        TextButton(onClick = onManageTypes) { Text("Gerenciar") }
+                        ManageLink(onManageTypes)
                     }
                     if (types.size in 1..3) {
                         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -290,7 +290,7 @@ fun ExpenseSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         SheetLabel("Categoria", Modifier.weight(1f))
-                        TextButton(onClick = onManageCategories) { Text("Gerenciar") }
+                        ManageLink(onManageCategories)
                     }
                     categories.chunked(4).forEach { row ->
                         Row(Modifier.fillMaxWidth()) {
@@ -308,7 +308,7 @@ fun ExpenseSheet(
                                         .padding(vertical = 6.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    CategoryBadge(c.name, size = 48.dp, selected = sel)
+                                    CategoryBadge(c.name, size = 44.dp, selected = sel)
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         c.name,
@@ -379,8 +379,12 @@ fun ExpenseSheet(
                 // ---- Pagamento: à vista ou parcelado (só em gasto novo) ----
                 if (initial == null) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SheetLabel("Pagamento")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SheetLabel("Pagamento", Modifier.weight(1f))
                             PillChip(!parcelar, { instText = "1"; showCustom = false }, "À vista")
                             PillChip(parcelar, {
                                 if (!parcelar) instText = "2"
@@ -618,5 +622,20 @@ private fun ScopeDialog(
         },
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+/** Link discreto "Gerenciar" ao lado do título de uma seção. */
+@Composable
+private fun ManageLink(onClick: () -> Unit) {
+    Text(
+        "Gerenciar",
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     )
 }
