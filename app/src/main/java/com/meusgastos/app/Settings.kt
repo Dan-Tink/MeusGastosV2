@@ -66,6 +66,13 @@ class Settings(context: Context) {
             prefs.edit().putString("themeMode", value).apply()
         }
 
+    /** Cor de destaque do app (chave de AccentTheme). */
+    var accent: String
+        get() = prefs.getString("accent", AccentTheme.VERDE.key) ?: AccentTheme.VERDE.key
+        set(value) {
+            prefs.edit().putString("accent", value).apply()
+        }
+
     var lastCategory: String
         get() = prefs.getString("lastCategory", "") ?: ""
         set(value) {

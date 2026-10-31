@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -20,6 +21,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -86,15 +89,15 @@ private val DarkScheme = darkColorScheme(
     onSecondaryContainer = Color(0xFFC6F2D6),
     tertiary = Color(0xFF6CCBD3),
     onTertiary = Color(0xFF00282B),
-    background = Color(0xFF0D1411),
+    background = Color(0xFF0A100D),
     onBackground = Color(0xFFE3EBE5),
-    surface = Color(0xFF131C17),
+    surface = Color(0xFF18241E),
     onSurface = Color(0xFFE3EBE5),
-    surfaceVariant = Color(0xFF1A2620),
+    surfaceVariant = Color(0xFF1E2D25),
     onSurfaceVariant = Color(0xFF9DB0A3),
     surfaceTint = Color(0xFF4CD07D),
     outline = Color(0xFF5A7364),
-    outlineVariant = Color(0xFF263A30),
+    outlineVariant = Color(0xFF2F473A),
     error = Color(0xFFF2878F),
     onError = Color(0xFF3A0A10),
     errorContainer = Color(0xFF5A1D24),
@@ -103,7 +106,7 @@ private val DarkScheme = darkColorScheme(
     surfaceContainerLow = Color(0xFF101914),
     surfaceContainer = Color(0xFF16211B),
     surfaceContainerHigh = Color(0xFF1B2822),
-    surfaceContainerHighest = Color(0xFF22312A)
+    surfaceContainerHighest = Color(0xFF2A3D33)
 )
 
 /** Cores de significado (ganho, aviso, destaque) e do cabeçalho, que mudam com o tema. */
@@ -130,7 +133,7 @@ private val DarkAppColors = AppColors(
     positive = Color(0xFF5ADB8F),
     warning = Color(0xFFE6B95C),
     violet = Color(0xFFB4A6F7),
-    headerBackground = Color(0xFF166A37),
+    headerBackground = Color(0xFF1A7F43),
     onHeader = Color.White,
     onHeaderMuted = Color(0xFFE3F3E8)
 )
@@ -159,8 +162,16 @@ val OnHeader: Color
 val OnHeaderMuted: Color
     @Composable @ReadOnlyComposable get() = LocalAppColors.current.onHeaderMuted
 
-/** Fonte dos valores em dinheiro. Sem fonte própria: usa a do sistema, como na referência. */
-val MoneyFont: FontFamily = FontFamily.Default
+/** Inter (licença SIL OFL), em quatro pesos. Números tabulares: os valores se alinham em coluna. */
+val AppFont: FontFamily = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold)
+)
+
+/** Fonte dos valores em dinheiro. */
+val MoneyFont: FontFamily get() = AppFont
 
 /** Borda fina e discreta dos cartões, no lugar de sombras pesadas. */
 val CardBorder: BorderStroke
@@ -176,12 +187,25 @@ private val AppShapes = Shapes(
 
 private val Base = Typography()
 
-// Títulos mais firmes e rótulos pequenos com um pouco de respiro entre as letras.
+private fun TextStyle.app(): TextStyle = copy(fontFamily = AppFont, fontFeatureSettings = "tnum")
+
+// Inter em tudo, com números tabulares. Títulos mais firmes e rótulos pequenos com respiro.
 private val AppTypography = Typography(
-    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold),
-    titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
-    labelSmall = Base.labelSmall.copy(letterSpacing = 0.4.sp)
+    displayLarge = Base.displayLarge.app(),
+    displayMedium = Base.displayMedium.app(),
+    displaySmall = Base.displaySmall.app(),
+    headlineLarge = Base.headlineLarge.app(),
+    headlineMedium = Base.headlineMedium.app(),
+    headlineSmall = Base.headlineSmall.app(),
+    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold).app(),
+    titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.SemiBold).app(),
+    titleSmall = Base.titleSmall.app(),
+    bodyLarge = Base.bodyLarge.app(),
+    bodyMedium = Base.bodyMedium.app(),
+    bodySmall = Base.bodySmall.app(),
+    labelLarge = Base.labelLarge.app(),
+    labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp).app(),
+    labelSmall = Base.labelSmall.copy(letterSpacing = 0.4.sp).app()
 )
 
 // Cores de gráficos e marcadores: tons médios que passam de 3:1 tanto no fundo branco quanto
@@ -223,10 +247,156 @@ private fun Context.findActivity(): Activity? {
     return null
 }
 
+// ---------------------------------------------------------------------------------------
+// Cores de destaque. Cada uma muda só a "tinta" do app (botões, cabeçalho, seleção e o leve tom
+// dos fundos); a estrutura, os tamanhos e o significado das cores (verde = ganho, vermelho =
+// dívida/limite) continuam iguais. Todos os botões mantêm texto com contraste de 4,5:1 ou mais.
+// ---------------------------------------------------------------------------------------
+
+private class AccentSpec(
+    val swatch: Color,
+    // claro
+    val lPrimary: Color, val lContainer: Color, val lOnContainer: Color, val lHeader: Color,
+    val lBackground: Color, val lHighest: Color, val lOutline: Color,
+    // escuro
+    val dPrimary: Color, val dOnPrimary: Color, val dContainer: Color, val dOnContainer: Color,
+    val dHeader: Color, val dBackground: Color, val dSurface: Color, val dVariant: Color,
+    val dOutline: Color, val dHighest: Color
+)
+
+enum class AccentTheme(val key: String, val label: String) {
+    VERDE("verde", "Verde"),
+    AZUL("azul", "Azul"),
+    ROXO("roxo", "Roxo"),
+    ROSA("rosa", "Rosa"),
+    VERMELHO("vermelho", "Vermelho"),
+    LARANJA("laranja", "Laranja");
+
+    /** Cor mostrada no seletor (a do cabeçalho no tema claro). */
+    val swatch: Color get() = spec().swatch
+
+    companion object {
+        fun from(key: String?): AccentTheme = entries.firstOrNull { it.key == key } ?: VERDE
+    }
+}
+
+private fun c(v: Long) = Color(v)
+
+private fun AccentTheme.spec(): AccentSpec = when (this) {
+    AccentTheme.VERDE -> AccentSpec(
+        c(0xFF18A649),
+        c(0xFF12873C), c(0xFFD8F3E1), c(0xFF083D1B), c(0xFF18A649), c(0xFFF4F6F4), c(0xFFEAF0EC), c(0xFFDDE5DF),
+        c(0xFF4CD07D), c(0xFF05260F), c(0xFF14452A), c(0xFFC6F2D6), c(0xFF1A7F43),
+        c(0xFF0A100D), c(0xFF18241E), c(0xFF1E2D25), c(0xFF2F473A), c(0xFF2A3D33)
+    )
+    AccentTheme.AZUL -> AccentSpec(
+        c(0xFF1976D2),
+        c(0xFF1565C0), c(0xFFD6E6FA), c(0xFF0B2F5E), c(0xFF1976D2), c(0xFFF3F6FA), c(0xFFE7EDF4), c(0xFFDAE2EC),
+        c(0xFF7DB6F5), c(0xFF06223F), c(0xFF123B66), c(0xFFD3E6FB), c(0xFF1B5FA8),
+        c(0xFF090E14), c(0xFF141D28), c(0xFF1A2635), c(0xFF2B4259), c(0xFF25374B)
+    )
+    AccentTheme.ROXO -> AccentSpec(
+        c(0xFF7B4FD6),
+        c(0xFF6A3FC8), c(0xFFE7DDFA), c(0xFF2A1466), c(0xFF7B4FD6), c(0xFFF6F4FA), c(0xFFEEEAF5), c(0xFFE1DCEC),
+        c(0xFFB8A2F2), c(0xFF24104F), c(0xFF3B2677), c(0xFFE6DDFB), c(0xFF5B37A8),
+        c(0xFF0E0B14), c(0xFF1B1626), c(0xFF241D33), c(0xFF3D3357), c(0xFF322A47)
+    )
+    AccentTheme.ROSA -> AccentSpec(
+        c(0xFFD81B6F),
+        c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
+        c(0xFFF48FB8), c(0xFF4A0A28), c(0xFF6B1B41), c(0xFFFFD9E8), c(0xFFA8195A),
+        c(0xFF140B0F), c(0xFF261720), c(0xFF301D28), c(0xFF4E3040), c(0xFF3F2634)
+    )
+    AccentTheme.VERMELHO -> AccentSpec(
+        c(0xFFD32F2F),
+        c(0xFFC62828), c(0xFFFADDDA), c(0xFF5C0A0A), c(0xFFD32F2F), c(0xFFFAF4F3), c(0xFFF5E8E6), c(0xFFEBDAD7),
+        c(0xFFF2827E), c(0xFF4D0907), c(0xFF6E1C1A), c(0xFFFFDAD7), c(0xFFA52A27),
+        c(0xFF140C0B), c(0xFF261918), c(0xFF301F1D), c(0xFF4E3633), c(0xFF3F2B29)
+    )
+    AccentTheme.LARANJA -> AccentSpec(
+        c(0xFFCF5A08),
+        c(0xFFB84E06), c(0xFFFDE3CF), c(0xFF5A2400), c(0xFFCF5A08), c(0xFFFAF6F2), c(0xFFF5ECE4), c(0xFFEBDFD4),
+        c(0xFFF7A261), c(0xFF4A2100), c(0xFF6B3410), c(0xFFFFDFC6), c(0xFFA8500D),
+        c(0xFF140E09), c(0xFF26190F), c(0xFF30211A), c(0xFF4E3A2C), c(0xFF3F2E22)
+    )
+}
+
+/** Matiz (0..360) de uma cor, para tingir os cinzas do tema com a mesma família. */
+private fun hueOf(color: Color): Float {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    return hsv[0]
+}
+
+private fun lightFor(a: AccentTheme): ColorScheme {
+    val s = a.spec()
+    val h = hueOf(s.lPrimary)
+    return LightScheme.copy(
+        onBackground = Color.hsl(h, 0.20f, 0.09f),
+        onSurface = Color.hsl(h, 0.20f, 0.09f),
+        onSurfaceVariant = Color.hsl(h, 0.12f, 0.35f),
+        outline = Color.hsl(h, 0.10f, 0.46f),
+        surfaceContainerLow = androidx.compose.ui.graphics.lerp(Color.White, s.lBackground, 0.5f),
+        primary = s.lPrimary,
+        primaryContainer = s.lContainer,
+        onPrimaryContainer = s.lOnContainer,
+        secondaryContainer = s.lContainer,
+        onSecondaryContainer = s.lOnContainer,
+        surfaceTint = s.lPrimary,
+        background = s.lBackground,
+        surfaceContainerHighest = s.lHighest,
+        outlineVariant = s.lOutline
+    )
+}
+
+private fun darkFor(a: AccentTheme): ColorScheme {
+    val s = a.spec()
+    val h = hueOf(s.dPrimary)
+    return DarkScheme.copy(
+        onBackground = Color.hsl(h, 0.14f, 0.91f),
+        onSurface = Color.hsl(h, 0.14f, 0.91f),
+        onSurfaceVariant = Color.hsl(h, 0.10f, 0.70f),
+        outline = Color.hsl(h, 0.10f, 0.50f),
+        surfaceContainerLowest = s.dBackground,
+        surfaceContainerLow = s.dSurface,
+        surfaceContainer = s.dVariant,
+        surfaceContainerHigh = androidx.compose.ui.graphics.lerp(s.dVariant, s.dHighest, 0.5f),
+        primary = s.dPrimary,
+        onPrimary = s.dOnPrimary,
+        primaryContainer = s.dContainer,
+        onPrimaryContainer = s.dOnContainer,
+        secondaryContainer = s.dContainer,
+        onSecondaryContainer = s.dOnContainer,
+        surfaceTint = s.dPrimary,
+        background = s.dBackground,
+        surface = s.dSurface,
+        surfaceVariant = s.dVariant,
+        outlineVariant = s.dOutline,
+        surfaceContainerHighest = s.dHighest
+    )
+}
+
+private fun appColorsFor(a: AccentTheme, dark: Boolean): AppColors {
+    val s = a.spec()
+    val base = if (dark) DarkAppColors else LightAppColors
+    return AppColors(
+        positive = base.positive,
+        warning = base.warning,
+        violet = base.violet,
+        headerBackground = if (dark) s.dHeader else s.lHeader,
+        onHeader = base.onHeader,
+        onHeaderMuted = base.onHeaderMuted
+    )
+}
+
 @Composable
-fun MeusGastosTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
-    val scheme = if (darkTheme) DarkScheme else LightScheme
-    val app = if (darkTheme) DarkAppColors else LightAppColors
+fun MeusGastosTheme(
+    darkTheme: Boolean,
+    accent: AccentTheme = AccentTheme.VERDE,
+    content: @Composable () -> Unit
+) {
+    val scheme = if (darkTheme) darkFor(accent) else lightFor(accent)
+    val app = appColorsFor(accent, darkTheme)
 
     // Barras do sistema acompanham o tema: a de cima fica na cor do cabeçalho (ícones claros) e a de
     // baixo na cor da barra de navegação do app.

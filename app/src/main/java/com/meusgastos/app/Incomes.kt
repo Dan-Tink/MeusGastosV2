@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -83,6 +85,7 @@ fun LazyListScope.incomesTab(
             icon = Icons.Default.Repeat,
             title = f.description,
             subtitle = "Todo dia ${f.dayOfMonth}",
+            badge = "todo mês",
             cents = f.amountCents,
             onClick = { onEditFixed(f) }
         )
@@ -99,6 +102,7 @@ fun LazyListScope.incomesTab(
             icon = Icons.Default.CalendarMonth,
             title = i.description,
             subtitle = LocalDate.ofEpochDay(i.epochDay).fmt(),
+            badge = "só este mês",
             cents = i.amountCents,
             onClick = { onEditVariable(i) }
         )
@@ -126,7 +130,7 @@ private fun IncomeTotalCard(month: YearMonth, fixedTotal: Long, variableTotal: L
                 textAlign = TextAlign.Center
             )
             Text(
-                (fixedTotal + variableTotal).toMoney(),
+                moneyAnnotated(fixedTotal + variableTotal),
                 style = MaterialTheme.typography.headlineLarge,
                 fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,
@@ -134,12 +138,55 @@ private fun IncomeTotalCard(month: YearMonth, fixedTotal: Long, variableTotal: L
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                "Fixos ${fixedTotal.toMoney()}  ·  Variáveis ${variableTotal.toMoney()}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (fixedTotal + variableTotal > 0) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                ) {
+                    if (fixedTotal > 0) {
+                        Box(
+                            Modifier
+                                .weight(fixedTotal.toFloat())
+                                .fillMaxHeight()
+                                .background(PositiveColor)
+                        )
+                    }
+                    if (variableTotal > 0) {
+                        Box(
+                            Modifier
+                                .weight(variableTotal.toFloat())
+                                .fillMaxHeight()
+                                .background(AccentViolet)
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                IncomeLegend(PositiveColor, "Fixos ${fixedTotal.toMoney()}")
+                IncomeLegend(AccentViolet, "Variáveis ${variableTotal.toMoney()}")
+            }
         }
+    }
+}
+
+@Composable
+private fun IncomeLegend(color: androidx.compose.ui.graphics.Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(color)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -182,6 +229,7 @@ private fun IncomeRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    badge: String,
     cents: Long,
     onClick: () -> Unit
 ) {
@@ -214,11 +262,25 @@ private fun IncomeRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ) {
+                        Text(
+                            badge,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
             Spacer(Modifier.width(8.dp))
             Text(

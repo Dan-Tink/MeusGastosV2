@@ -33,3 +33,7 @@ App Android (Kotlin + Jetpack Compose + Room) para registrar despesas como numa 
 - Novo visual verde (cabeçalho curvo, cartões arredondados, botão "+" central) com tema Automático/Claro/Escuro, salvo entre aberturas (menu ⋮ → Tema).
 - Nova aba **Dívidas**: dívidas sem vencimento, pagamentos parciais com histórico, saldo devedor automático (centavos inteiros), edição segura e exclusão com confirmação. Pagamentos de dívida não viram despesas.
 - Banco migrado de forma não destrutiva (6 → 7) e backup inclui dívidas e pagamentos.
+
+## Versão 1.5
+- Resumo: cartão de saldo sobre o cabeçalho verde, rosca de categorias sempre visível, novo ícone (gráfico de pizza).
+- Fonte Inter (SIL Open Font License 1.1, © The Inter Project Authors) com números tabulares; centavos menores nos valores grandes.

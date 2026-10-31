@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -137,7 +138,7 @@ private fun DebtSummaryCard(t: DebtTotals) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                t.openBalanceCents.toMoney(),
+                moneyAnnotated(t.openBalanceCents),
                 style = MaterialTheme.typography.headlineLarge,
                 fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,
@@ -207,7 +208,7 @@ private fun StatusChip(settled: Boolean) {
 @Composable
 private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
     val st = v.status
-    val tint = typeColor(v.debt.creditor)
+    val tint = MaterialTheme.colorScheme.primary
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -653,7 +654,7 @@ private fun PaymentDialog(
                     "${view.debt.creditor} · saldo devedor ${st.balanceCents.toMoney()}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                TextField(
                     value = amount,
                     onValueChange = {
                         amount = it
@@ -667,7 +668,8 @@ private fun PaymentDialog(
                     isError = error != null,
                     supportingText = error?.let { msg -> { Text(msg) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    colors = softFieldColors()
                 )
                 TextButton(onClick = {
                     amount = st.balanceCents.toPlain()
@@ -682,13 +684,14 @@ private fun PaymentDialog(
                     Spacer(Modifier.width(8.dp))
                     Text("Data: ${date.fmt()}")
                 }
-                OutlinedTextField(
+                TextField(
                     value = note,
                     onValueChange = { note = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Observação (opcional)") },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    colors = softFieldColors()
                 )
             }
         },
@@ -760,25 +763,27 @@ private fun DebtFormSheet(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-            OutlinedTextField(
+            TextField(
                 value = creditor,
                 onValueChange = { creditor = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Credor") },
                 placeholder = { Text("ex.: Minha irmã") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
-            OutlinedTextField(
+            TextField(
                 value = description,
                 onValueChange = { description = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Descrição (opcional)") },
                 placeholder = { Text("ex.: Dinheiro emprestado") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
-            OutlinedTextField(
+            TextField(
                 value = amount,
                 onValueChange = { amount = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -787,10 +792,12 @@ private fun DebtFormSheet(
                 prefix = { Text("R$ ") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
 
             Card(
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 border = CardBorder,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)

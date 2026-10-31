@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Payments
@@ -93,6 +95,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -104,6 +107,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Instant
@@ -131,6 +135,7 @@ fun HomeScreen(vm: MainViewModel) {
     val summary by vm.monthSummary.collectAsStateWithLifecycle()
     val debts by vm.debts.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val accent by vm.accent.collectAsStateWithLifecycle()
     val recurring by vm.recurring.collectAsStateWithLifecycle()
     val history by vm.allExpenses.collectAsStateWithLifecycle()
     val limit by vm.limitCents.collectAsStateWithLifecycle()
@@ -210,7 +215,7 @@ fun HomeScreen(vm: MainViewModel) {
             AppBottomBar(
                 items = listOf(
                     NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
-                    NavItem("Resumo", Icons.Outlined.Home, Icons.Filled.Home),
+                    NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
                     NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
                     NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
                 ),
@@ -233,7 +238,7 @@ fun HomeScreen(vm: MainViewModel) {
     ) { padding ->
         Column(Modifier.padding(padding)) {
             // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
-            HeaderBar {
+            HeaderBar(extraBottom = if (tab == TAB_SUMMARY) 44.dp else 0.dp) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (tab != TAB_DEBTS) {
                         IconButton(onClick = { vm.month.value = month.minusMonths(1) }) {
@@ -303,7 +308,7 @@ fun HomeScreen(vm: MainViewModel) {
                                 onClick = { menuOpen = false; showCapture = true }
                             )
                             DropdownMenuItem(
-                                text = { Text("Tema (claro ou escuro)") },
+                                text = { Text("Aparência (modo e cor)") },
                                 onClick = { menuOpen = false; showTheme = true }
                             )
                             DropdownMenuItem(
@@ -334,6 +339,26 @@ fun HomeScreen(vm: MainViewModel) {
                             )
                         }
                     }
+                }
+            }
+
+            // Cartão de saldo: metade sobre o verde do cabeçalho, metade sobre o fundo.
+            if (tab == TAB_SUMMARY) {
+                Box(
+                    Modifier
+                        .padding(horizontal = 16.dp)
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            val up = 44.dp.roundToPx()
+                            layout(placeable.width, placeable.height - up) { placeable.place(0, -up) }
+                        }
+                ) {
+                    OverviewCard(
+                        o = overview,
+                        limit = limit.takeIf { it > 0 },
+                        prevLabel = month.minusMonths(1).monthName(),
+                        onIncomeClick = { tab = TAB_INCOMES }
+                    )
                 }
             }
 
@@ -419,14 +444,6 @@ fun HomeScreen(vm: MainViewModel) {
                             onEnable = { showCapture = true },
                             onDismiss = { vm.dismissCaptureTip() }
                         )
-                        item {
-                            OverviewCard(
-                                o = overview,
-                                limit = limit.takeIf { it > 0 },
-                                prevLabel = month.minusMonths(1).monthName(),
-                                onIncomeClick = { tab = TAB_INCOMES }
-                            )
-                        }
                         if (summary.total > 0) {
                             item { SummaryCard(summary) }
                         } else {
@@ -578,9 +595,11 @@ fun HomeScreen(vm: MainViewModel) {
     }
 
     if (showTheme) {
-        ThemeDialog(
-            current = themeMode,
-            onSelect = { vm.setThemeMode(it) },
+        AppearanceSheet(
+            mode = themeMode,
+            onMode = { vm.setThemeMode(it) },
+            accent = accent,
+            onAccent = { vm.setAccent(it) },
             onDismiss = { showTheme = false }
         )
     }
@@ -711,14 +730,14 @@ private fun ListTotal(state: UiState) {
             style = MaterialTheme.typography.titleMedium,
             fontFamily = MoneyFont,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
 @Composable
 private fun SummaryCard(state: MonthSummary) {
-    var byCategory by remember { mutableStateOf(false) }
+    var byCategory by remember { mutableStateOf(true) }
     Card(
         shape = RoundedCornerShape(16.dp),
         border = CardBorder,
@@ -726,19 +745,15 @@ private fun SummaryCard(state: MonthSummary) {
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "Gastos do mês",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Para onde foi o dinheiro",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
+            val top = state.byCategory.firstOrNull()
             Text(
-                state.total.toMoney(),
-                style = MaterialTheme.typography.headlineLarge,
-                fontFamily = MoneyFont,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "${state.count} lançamento(s)",
+                if (top != null && state.total > 0)
+                    "${state.count} lançamento(s) · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
+                else "${state.count} lançamento(s)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -788,7 +803,8 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Canvas(Modifier.size(120.dp)) {
+        Box(Modifier.size(136.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(136.dp)) {
             val strokeWidth = size.minDimension * 0.2f
             val diameter = size.minDimension - strokeWidth
             val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
@@ -817,7 +833,22 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                 start += sweep
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Total",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    total.toMoney(),
+                    fontFamily = MoneyFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1
+                )
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             data.forEach { (name, value) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -830,7 +861,8 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                     Column {
                         Text(
                             "$name · ${value * 100 / total}%",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (name == data.first().first) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
