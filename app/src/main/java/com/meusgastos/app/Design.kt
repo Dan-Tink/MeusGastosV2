@@ -61,7 +61,7 @@ fun categoryIcon(name: String): ImageVector = when (name) {
 /** Círculo com o ícone da categoria. No escuro o fundo é mais forte e o ícone assume a cor da categoria. */
 @Composable
 fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false) {
-    val tint = categoryColor(name)
+    val tint = if (name == "Outros") MaterialTheme.colorScheme.onSurfaceVariant else categoryColor(name)
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val bg = when {
         selected -> tint
