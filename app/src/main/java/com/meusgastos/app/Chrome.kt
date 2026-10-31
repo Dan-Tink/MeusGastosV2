@@ -106,9 +106,9 @@ fun AppBottomBar(
             NavTab(items[0], selected == 0) { onSelect(0) }
             NavTab(items[1], selected == 1) { onSelect(1) }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                var addOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                 val rotation by androidx.compose.animation.core.animateFloatAsState(
-                    if (open) 45f else 0f, label = "addRotation"
+                    if (addOpen) 45f else 0f, label = "addRotation"
                 )
                 val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 68.dp.roundToPx() }
                 Box(
@@ -119,25 +119,25 @@ fun AppBottomBar(
                         .background(MaterialTheme.colorScheme.primary)
                         .clickable(
                             role = Role.Button,
-                            onClickLabel = if (open) "Fechar opções" else "Adicionar",
-                            onClick = { open = !open }
+                            onClickLabel = if (addOpen) "Fechar opções" else "Adicionar",
+                            onClick = { addOpen = !addOpen }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = if (open) "Fechar opções" else "Adicionar",
+                        contentDescription = if (addOpen) "Fechar opções" else "Adicionar",
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier
                             .size(30.dp)
                             .rotate(rotation)
                     )
                 }
-                if (open) {
+                if (addOpen) {
                     androidx.compose.ui.window.Popup(
                         alignment = Alignment.BottomCenter,
                         offset = androidx.compose.ui.unit.IntOffset(0, -gap),
-                        onDismissRequest = { open = false },
+                        onDismissRequest = { addOpen = false },
                         properties = androidx.compose.ui.window.PopupProperties(focusable = true)
                     ) {
                         Column(
@@ -145,13 +145,13 @@ fun AppBottomBar(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             AddOption("Dívida", androidx.compose.material.icons.Icons.Filled.AccountBalanceWallet) {
-                                open = false; onAddDebt()
+                                addOpen = false; onAddDebt()
                             }
                             AddOption("Ganho", androidx.compose.material.icons.Icons.Filled.Payments) {
-                                open = false; onAddIncome()
+                                addOpen = false; onAddIncome()
                             }
                             AddOption("Despesa", androidx.compose.material.icons.Icons.Filled.Receipt) {
-                                open = false; onAddExpense()
+                                addOpen = false; onAddExpense()
                             }
                         }
                     }
