@@ -350,15 +350,19 @@ fun IncomeSheet(
                     editingFixed != null -> "Editar ganho fixo"
                     else -> "Editar ganho variável"
                 },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            AmountHero(value = amount, onValueChange = { amount = it })
 
             if (isNew) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PillChip(fixedMode, { fixedMode = true }, "Fixo · todo mês")
-                    PillChip(!fixedMode, { fixedMode = false }, "Variável · só um mês")
-                }
+                SegmentedChoice(
+                    options = listOf("Fixo · todo mês", "Variável · só um mês"),
+                    selectedIndex = if (fixedMode) 0 else 1,
+                    onSelect = { fixedMode = it == 0 }
+                )
             }
             Text(
                 if (fixedMode) {
@@ -377,18 +381,6 @@ fun IncomeSheet(
                 label = { Text("Descrição") },
                 placeholder = { Text(if (fixedMode) "ex.: Salário" else "ex.: Freela") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = softFieldColors()
-            )
-            TextField(
-                value = amount,
-                onValueChange = { amount = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Valor") },
-                placeholder = { Text("1800,00") },
-                prefix = { Text("R$ ") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 shape = RoundedCornerShape(14.dp),
                 colors = softFieldColors()
             )

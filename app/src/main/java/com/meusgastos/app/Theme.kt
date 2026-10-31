@@ -372,7 +372,9 @@ private fun darkFor(a: AccentTheme): ColorScheme {
         surface = s.dSurface,
         surfaceVariant = s.dVariant,
         outlineVariant = s.dOutline,
-        surfaceContainerHighest = s.dHighest
+        surfaceContainerHighest = s.dHighest,
+        // No rosa o vermelho padrão ficava quase igual ao destaque; coral mantém o alerta distinto.
+        error = if (a == AccentTheme.ROSA) Color(0xFFFF7A5C) else DarkScheme.error
     )
 }
 

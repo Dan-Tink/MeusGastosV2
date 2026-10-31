@@ -52,6 +52,15 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -279,21 +288,11 @@ fun HomeScreen(vm: MainViewModel) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Tipos de despesa") },
-                                onClick = { menuOpen = false; showTypes = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Categorias") },
-                                onClick = { menuOpen = false; showCategories = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Gastos recorrentes") },
-                                onClick = { menuOpen = false; showRecurring = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Copiar fixos do mês anterior") },
-                                onClick = {
+                            if (tab != TAB_DEBTS) {
+                                MenuRow("Tipos de despesa", Icons.Default.Sell) { menuOpen = false; showTypes = true }
+                                MenuRow("Categorias", Icons.Default.Category) { menuOpen = false; showCategories = true }
+                                MenuRow("Gastos recorrentes", Icons.Default.Repeat) { menuOpen = false; showRecurring = true }
+                                MenuRow("Copiar fixos do mês anterior", Icons.Default.ContentCopy) {
                                     menuOpen = false
                                     vm.copyFixedFromPreviousMonth { n ->
                                         toast(
@@ -302,41 +301,28 @@ fun HomeScreen(vm: MainViewModel) {
                                         )
                                     }
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Captura por notificação") },
-                                onClick = { menuOpen = false; showCapture = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Aparência (modo e cor)") },
-                                onClick = { menuOpen = false; showTheme = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Limite e lembrete") },
-                                onClick = { menuOpen = false; showSettings = true }
-                            )
+                                MenuRow("Captura por notificação", Icons.Default.NotificationsActive) {
+                                    menuOpen = false; showCapture = true
+                                }
+                                HorizontalDivider()
+                            }
+                            MenuRow("Aparência (modo e cor)", Icons.Default.Palette) { menuOpen = false; showTheme = true }
+                            if (tab != TAB_DEBTS) {
+                                MenuRow("Limite e lembrete", Icons.Default.Tune) { menuOpen = false; showSettings = true }
+                            }
                             HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text("Exportar planilha (CSV)") },
-                                onClick = {
-                                    menuOpen = false
-                                    csvLauncher.launch("meus-gastos-${LocalDate.now()}.csv")
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Salvar backup") },
-                                onClick = {
-                                    menuOpen = false
-                                    backupLauncher.launch("meus-gastos-backup-${LocalDate.now()}.json")
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Restaurar backup") },
-                                onClick = {
-                                    menuOpen = false
-                                    restoreLauncher.launch(arrayOf("*/*"))
-                                }
-                            )
+                            MenuRow("Exportar planilha (CSV)", Icons.Default.FileDownload) {
+                                menuOpen = false
+                                csvLauncher.launch("meus-gastos-${LocalDate.now()}.csv")
+                            }
+                            MenuRow("Salvar backup", Icons.Default.Backup) {
+                                menuOpen = false
+                                backupLauncher.launch("meus-gastos-backup-${LocalDate.now()}.json")
+                            }
+                            MenuRow("Restaurar backup", Icons.Default.Restore) {
+                                menuOpen = false
+                                restoreLauncher.launch(arrayOf("*/*"))
+                            }
                         }
                     }
                 }
@@ -1190,4 +1176,16 @@ private fun FiltersSheet(
 
     if (pickFrom) PickDate(from, onPick = { from = it }, onDismiss = { pickFrom = false })
     if (pickTo) PickDate(to, onPick = { to = it }, onDismiss = { pickTo = false })
+}
+
+/** Item do menu ⋮ com ícone à esquerda. */
+@Composable
+private fun MenuRow(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+        onClick = onClick
+    )
 }

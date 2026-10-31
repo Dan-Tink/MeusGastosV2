@@ -207,38 +207,13 @@ fun ExpenseSheet(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    TextField(
+                    AmountHero(
                         value = amount,
                         onValueChange = { amount = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focus),
-                        textStyle = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        placeholder = {
-                            Text(
-                                "0,00",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.displaySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        )
+                        fieldModifier = Modifier.focusRequester(focus)
                     )
                     Text(
-                        "$amountLabel (R$)",
+                        amountLabel,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

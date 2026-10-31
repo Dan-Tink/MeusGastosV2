@@ -1,7 +1,18 @@
 package com.meusgastos.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -165,5 +176,50 @@ fun moneyAnnotated(cents: Long, centsScale: Float = 0.6f): AnnotatedString {
             append(t.substring(0, i))
             withStyle(SpanStyle(fontSize = centsScale.em)) { append(t.substring(i)) }
         }
+    }
+}
+
+/**
+ * Valor em destaque: "R$" ao lado e o cursor sempre no início do campo, sobre o "0,00" de
+ * referência (o campo centralizado do Material deixava o cursor no meio do placeholder).
+ */
+@Composable
+fun AmountHero(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    fieldModifier: Modifier = Modifier
+) {
+    val style: TextStyle = MaterialTheme.typography.displaySmall.copy(
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+    Row(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "R$",
+            style = style.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = fieldModifier,
+            textStyle = style,
+            singleLine = true,
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text("0,00", style = style.copy(color = MaterialTheme.colorScheme.outline))
+                    }
+                    inner()
+                }
+            }
+        )
     }
 }
