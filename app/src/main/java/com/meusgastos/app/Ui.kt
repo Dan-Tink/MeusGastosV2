@@ -135,6 +135,7 @@ fun HomeScreen(vm: MainViewModel) {
     val summary by vm.monthSummary.collectAsStateWithLifecycle()
     val debts by vm.debts.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val accent by vm.accent.collectAsStateWithLifecycle()
     val recurring by vm.recurring.collectAsStateWithLifecycle()
     val history by vm.allExpenses.collectAsStateWithLifecycle()
     val limit by vm.limitCents.collectAsStateWithLifecycle()
@@ -307,7 +308,7 @@ fun HomeScreen(vm: MainViewModel) {
                                 onClick = { menuOpen = false; showCapture = true }
                             )
                             DropdownMenuItem(
-                                text = { Text("Tema (claro ou escuro)") },
+                                text = { Text("Aparência (modo e cor)") },
                                 onClick = { menuOpen = false; showTheme = true }
                             )
                             DropdownMenuItem(
@@ -594,9 +595,11 @@ fun HomeScreen(vm: MainViewModel) {
     }
 
     if (showTheme) {
-        ThemeDialog(
-            current = themeMode,
-            onSelect = { vm.setThemeMode(it) },
+        AppearanceSheet(
+            mode = themeMode,
+            onMode = { vm.setThemeMode(it) },
+            accent = accent,
+            onAccent = { vm.setAccent(it) },
             onDismiss = { showTheme = false }
         )
     }

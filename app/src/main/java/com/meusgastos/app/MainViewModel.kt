@@ -109,6 +109,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         themeMode.value = mode
     }
 
+    val accent = MutableStateFlow(AccentTheme.from(settings.accent))
+
+    fun setAccent(a: AccentTheme) {
+        settings.accent = a.key
+        accent.value = a
+    }
+
     val captureEnabled = MutableStateFlow(settings.captureEnabled)
     val captureAuto = MutableStateFlow(settings.captureAuto)
     val captureDisabled = MutableStateFlow(settings.captureDisabled)
