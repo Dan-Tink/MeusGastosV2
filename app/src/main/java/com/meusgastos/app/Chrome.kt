@@ -113,7 +113,7 @@ fun AppBottomBar(
                 val rotation by androidx.compose.animation.core.animateFloatAsState(
                     if (addOpen) 45f else 0f, label = "addRotation"
                 )
-                val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 68.dp.roundToPx() }
+                val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 80.dp.roundToPx() }
                 Box(
                     Modifier
                         .size(56.dp)
@@ -172,13 +172,14 @@ fun AppBottomBar(
 private fun AddOption(label: String, icon: ImageVector, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
+        modifier = Modifier.width(140.dp),
         shape = RoundedCornerShape(50),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shadowElevation = 6.dp
     ) {
         Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))

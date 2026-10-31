@@ -2,6 +2,7 @@ package com.meusgastos.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -207,7 +208,7 @@ fun AmountHero(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = fieldModifier,
+            modifier = fieldModifier.width(IntrinsicSize.Min),
             textStyle = style,
             singleLine = true,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),

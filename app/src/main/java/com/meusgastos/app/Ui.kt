@@ -279,7 +279,7 @@ fun HomeScreen(vm: MainViewModel) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            if (tab != TAB_DEBTS) {
+                            if (tab == TAB_EXPENSES || tab == TAB_SUMMARY) {
                                 MenuRow("Tipos de despesa", Icons.Default.Sell) { menuOpen = false; showTypes = true }
                                 MenuRow("Categorias", Icons.Default.Category) { menuOpen = false; showCategories = true }
                                 MenuRow("Gastos recorrentes", Icons.Default.Repeat) { menuOpen = false; showRecurring = true }
@@ -298,7 +298,7 @@ fun HomeScreen(vm: MainViewModel) {
                                 HorizontalDivider()
                             }
                             MenuRow("Aparência (modo e cor)", Icons.Default.Palette) { menuOpen = false; showTheme = true }
-                            if (tab != TAB_DEBTS) {
+                            if (tab == TAB_EXPENSES || tab == TAB_SUMMARY) {
                                 MenuRow("Limite e lembrete", Icons.Default.Tune) { menuOpen = false; showSettings = true }
                             }
                             HorizontalDivider()
