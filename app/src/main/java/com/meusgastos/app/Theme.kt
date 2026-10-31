@@ -321,9 +321,22 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
     )
 }
 
+/** Matiz (0..360) de uma cor, para tingir os cinzas do tema com a mesma família. */
+private fun hueOf(color: Color): Float {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    return hsv[0]
+}
+
 private fun lightFor(a: AccentTheme): ColorScheme {
     val s = a.spec()
+    val h = hueOf(s.lPrimary)
     return LightScheme.copy(
+        onBackground = Color.hsl(h, 0.20f, 0.09f),
+        onSurface = Color.hsl(h, 0.20f, 0.09f),
+        onSurfaceVariant = Color.hsl(h, 0.12f, 0.35f),
+        outline = Color.hsl(h, 0.10f, 0.46f),
+        surfaceContainerLow = androidx.compose.ui.graphics.lerp(Color.White, s.lBackground, 0.5f),
         primary = s.lPrimary,
         primaryContainer = s.lContainer,
         onPrimaryContainer = s.lOnContainer,
@@ -338,7 +351,16 @@ private fun lightFor(a: AccentTheme): ColorScheme {
 
 private fun darkFor(a: AccentTheme): ColorScheme {
     val s = a.spec()
+    val h = hueOf(s.dPrimary)
     return DarkScheme.copy(
+        onBackground = Color.hsl(h, 0.14f, 0.91f),
+        onSurface = Color.hsl(h, 0.14f, 0.91f),
+        onSurfaceVariant = Color.hsl(h, 0.10f, 0.70f),
+        outline = Color.hsl(h, 0.10f, 0.50f),
+        surfaceContainerLowest = s.dBackground,
+        surfaceContainerLow = s.dSurface,
+        surfaceContainer = s.dVariant,
+        surfaceContainerHigh = androidx.compose.ui.graphics.lerp(s.dVariant, s.dHighest, 0.5f),
         primary = s.dPrimary,
         onPrimary = s.dOnPrimary,
         primaryContainer = s.dContainer,
