@@ -230,18 +230,9 @@ fun HomeScreen(vm: MainViewModel) {
                 ),
                 selected = tab,
                 onSelect = { tab = it },
-                addLabel = when (tab) {
-                    TAB_INCOMES -> "Novo ganho"
-                    TAB_DEBTS -> "Nova dívida"
-                    else -> "Novo gasto"
-                },
-                onAdd = {
-                    when (tab) {
-                        TAB_INCOMES -> incomeSheet = IncomeSheetState()
-                        TAB_DEBTS -> showNewDebt = true
-                        else -> showNew = true
-                    }
-                }
+                onAddExpense = { showNew = true },
+                onAddIncome = { incomeSheet = IncomeSheetState() },
+                onAddDebt = { showNewDebt = true }
             )
         }
     ) { padding ->

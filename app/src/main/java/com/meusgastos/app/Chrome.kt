@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -76,16 +77,17 @@ class NavItem(
 )
 
 /**
- * Barra inferior: duas abas, o botão "+" no centro e mais duas abas. O "+" faz a ação da aba
- * aberta (novo gasto, novo ganho ou nova dívida), por isso o texto de acessibilidade muda.
+ * Barra inferior: duas abas, o botão "+" no centro e mais duas abas. O "+" abre botões
+ * flutuantes para criar despesa, ganho ou dívida, de qualquer aba.
  */
 @Composable
 fun AppBottomBar(
     items: List<NavItem>,
     selected: Int,
     onSelect: (Int) -> Unit,
-    addLabel: String,
-    onAdd: () -> Unit
+    onAddExpense: () -> Unit,
+    onAddIncome: () -> Unit,
+    onAddDebt: () -> Unit
 ) {
     require(items.size == 4) { "A barra espera 4 abas" }
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 10.dp) {
@@ -101,27 +103,82 @@ fun AppBottomBar(
             NavTab(items[0], selected == 0) { onSelect(0) }
             NavTab(items[1], selected == 1) { onSelect(1) }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                val rotation by androidx.compose.animation.core.animateFloatAsState(
+                    if (open) 45f else 0f, label = "addRotation"
+                )
+                val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 68.dp.roundToPx() }
                 Box(
                     Modifier
                         .size(56.dp)
                         .shadow(6.dp, CircleShape)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
-                        .clickable(role = Role.Button, onClickLabel = addLabel, onClick = onAdd),
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = if (open) "Fechar opções" else "Adicionar",
+                            onClick = { open = !open }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = addLabel,
+                        contentDescription = if (open) "Fechar opções" else "Adicionar",
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier
+                            .size(30.dp)
+                            .rotate(rotation)
                     )
+                }
+                if (open) {
+                    androidx.compose.ui.window.Popup(
+                        alignment = Alignment.BottomCenter,
+                        offset = androidx.compose.ui.unit.IntOffset(0, -gap),
+                        onDismissRequest = { open = false },
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            AddOption("Dívida", androidx.compose.material.icons.Icons.Filled.AccountBalanceWallet) {
+                                open = false; onAddDebt()
+                            }
+                            AddOption("Ganho", androidx.compose.material.icons.Icons.Filled.Payments) {
+                                open = false; onAddIncome()
+                            }
+                            AddOption("Despesa", androidx.compose.material.icons.Icons.Filled.Receipt) {
+                                open = false; onAddExpense()
+                            }
+                        }
+                    }
                 }
             }
             NavTab(items[2], selected == 2) { onSelect(2) }
             NavTab(items[3], selected == 3) { onSelect(3) }
         }
       }
+    }
+}
+
+/** Botão flutuante em pílula do menu do "+". */
+@Composable
+private fun AddOption(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
