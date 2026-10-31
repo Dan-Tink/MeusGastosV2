@@ -107,6 +107,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Instant
@@ -799,7 +800,8 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Canvas(Modifier.size(120.dp)) {
+        Box(Modifier.size(136.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(136.dp)) {
             val strokeWidth = size.minDimension * 0.2f
             val diameter = size.minDimension - strokeWidth
             val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
@@ -828,7 +830,22 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                 start += sweep
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Total",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    total.toMoney(),
+                    fontFamily = MoneyFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1
+                )
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             data.forEach { (name, value) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -841,7 +858,8 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                     Column {
                         Text(
                             "$name · ${value * 100 / total}%",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (name == data.first().first) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

@@ -187,13 +187,8 @@ fun ExpenseSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(Modifier.fillMaxWidth().imePadding()) {
-            Column(
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+            // Valor fixo no topo: continua visível enquanto o formulário rola.
+            Box(Modifier.padding(horizontal = 20.dp)) {
                 // ---- Título e valor em destaque ----
                 Column(
                     Modifier.fillMaxWidth(),
@@ -249,6 +244,15 @@ fun ExpenseSheet(
                     )
                 }
 
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 // ---- Tipo: controle segmentado ----
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -414,10 +418,11 @@ fun ExpenseSheet(
                                     colors = softFieldColors()
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                PillChip(!amountIsTotal, { amountIsTotal = false }, "Valor da parcela")
-                                PillChip(amountIsTotal, { amountIsTotal = true }, "Valor total")
-                            }
+                            SegmentedChoice(
+                                options = listOf("Valor da parcela", "Valor total"),
+                                selectedIndex = if (amountIsTotal) 1 else 0,
+                                onSelect = { amountIsTotal = it == 1 }
+                            )
                         }
                     }
                 }
@@ -428,8 +433,8 @@ fun ExpenseSheet(
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) {
                         Column(

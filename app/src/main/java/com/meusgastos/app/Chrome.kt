@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -83,6 +85,8 @@ fun AppBottomBar(
 ) {
     require(items.size == 4) { "A barra espera 4 abas" }
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 10.dp) {
+      Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(
             Modifier
                 .fillMaxWidth()
@@ -113,13 +117,14 @@ fun AppBottomBar(
             NavTab(items[2], selected == 2) { onSelect(2) }
             NavTab(items[3], selected == 3) { onSelect(3) }
         }
+      }
     }
 }
 
 @Composable
 private fun RowScope.NavTab(item: NavItem, selected: Boolean, onClick: () -> Unit) {
     val color =
-        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         Modifier
             .weight(1f)
@@ -128,22 +133,32 @@ private fun RowScope.NavTab(item: NavItem, selected: Boolean, onClick: () -> Uni
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        BadgedBox(badge = {
-            if (item.badge > 0) Badge { Text(item.badge.toString()) }
-        }) {
-            Icon(
-                if (selected) item.iconSelected else item.icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(26.dp)
-            )
+        // Pílula atrás do ícone da aba aberta.
+        Box(
+            Modifier
+                .width(56.dp)
+                .height(30.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+            contentAlignment = Alignment.Center
+        ) {
+            BadgedBox(badge = {
+                if (item.badge > 0) Badge { Text(item.badge.toString()) }
+            }) {
+                Icon(
+                    if (selected) item.iconSelected else item.icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
         Spacer(Modifier.height(2.dp))
         Text(
             item.label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = color,
+            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
     }

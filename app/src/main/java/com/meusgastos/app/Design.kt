@@ -17,6 +17,11 @@ import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,23 +58,63 @@ fun categoryIcon(name: String): ImageVector = when (name) {
     else -> Icons.Default.Category
 }
 
-/** Círculo com o ícone da categoria, na cor dela (fundo suave, ícone escuro/claro conforme o tema). */
+/** Círculo com o ícone da categoria. No escuro o fundo é mais forte e o ícone assume a cor da categoria. */
 @Composable
 fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false) {
     val tint = categoryColor(name)
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val bg = when {
+        selected -> tint
+        dark -> tint.copy(alpha = 0.30f)
+        else -> tint.copy(alpha = 0.16f)
+    }
+    val fg = when {
+        selected -> Color.White
+        dark -> androidx.compose.ui.graphics.lerp(tint, Color.White, 0.55f)
+        else -> MaterialTheme.colorScheme.onSurface
+    }
     Box(
         Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (selected) tint else tint.copy(alpha = 0.16f)),
+            .background(bg),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             categoryIcon(name),
             contentDescription = null,
-            tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+            tint = fg,
             modifier = Modifier.size(size * 0.5f)
         )
+    }
+}
+
+/** Escolha entre poucas opções mutuamente exclusivas (controle segmentado, sem borda). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SegmentedChoice(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
+        options.forEachIndexed { i, label ->
+            SegmentedButton(
+                selected = i == selectedIndex,
+                onClick = { onSelect(i) },
+                shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                icon = {},
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.primary,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                    activeBorderColor = Color.Transparent,
+                    inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveBorderColor = Color.Transparent
+                )
+            ) { Text(label, maxLines = 1) }
+        }
     }
 }
 

@@ -88,15 +88,15 @@ private val DarkScheme = darkColorScheme(
     onSecondaryContainer = Color(0xFFC6F2D6),
     tertiary = Color(0xFF6CCBD3),
     onTertiary = Color(0xFF00282B),
-    background = Color(0xFF0D1411),
+    background = Color(0xFF0A100D),
     onBackground = Color(0xFFE3EBE5),
-    surface = Color(0xFF131C17),
+    surface = Color(0xFF18241E),
     onSurface = Color(0xFFE3EBE5),
-    surfaceVariant = Color(0xFF1A2620),
+    surfaceVariant = Color(0xFF1E2D25),
     onSurfaceVariant = Color(0xFF9DB0A3),
     surfaceTint = Color(0xFF4CD07D),
     outline = Color(0xFF5A7364),
-    outlineVariant = Color(0xFF263A30),
+    outlineVariant = Color(0xFF2F473A),
     error = Color(0xFFF2878F),
     onError = Color(0xFF3A0A10),
     errorContainer = Color(0xFF5A1D24),
@@ -105,7 +105,7 @@ private val DarkScheme = darkColorScheme(
     surfaceContainerLow = Color(0xFF101914),
     surfaceContainer = Color(0xFF16211B),
     surfaceContainerHigh = Color(0xFF1B2822),
-    surfaceContainerHighest = Color(0xFF22312A)
+    surfaceContainerHighest = Color(0xFF2A3D33)
 )
 
 /** Cores de significado (ganho, aviso, destaque) e do cabeçalho, que mudam com o tema. */
@@ -132,7 +132,7 @@ private val DarkAppColors = AppColors(
     positive = Color(0xFF5ADB8F),
     warning = Color(0xFFE6B95C),
     violet = Color(0xFFB4A6F7),
-    headerBackground = Color(0xFF166A37),
+    headerBackground = Color(0xFF1A7F43),
     onHeader = Color.White,
     onHeaderMuted = Color(0xFFE3F3E8)
 )
