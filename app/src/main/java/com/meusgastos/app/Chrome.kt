@@ -36,6 +36,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -144,13 +147,13 @@ fun AppBottomBar(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            AddOption("Dívida", androidx.compose.material.icons.Icons.Filled.AccountBalanceWallet) {
+                            AddOption("Dívida", Icons.Filled.AccountBalanceWallet) {
                                 addOpen = false; onAddDebt()
                             }
-                            AddOption("Ganho", androidx.compose.material.icons.Icons.Filled.Payments) {
+                            AddOption("Ganho", Icons.Filled.Payments) {
                                 addOpen = false; onAddIncome()
                             }
-                            AddOption("Despesa", androidx.compose.material.icons.Icons.Filled.Receipt) {
+                            AddOption("Despesa", Icons.Filled.Receipt) {
                                 addOpen = false; onAddExpense()
                             }
                         }
