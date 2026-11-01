@@ -760,8 +760,18 @@ private fun DebtFormSheet(
         ) {
             Text(
                 if (initial == null) "Nova dívida" else "Editar dívida",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            AmountHero(value = amount, onValueChange = { amount = it })
+            Text(
+                "Valor original",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             TextField(
                 value = creditor,
@@ -780,18 +790,6 @@ private fun DebtFormSheet(
                 label = { Text("Descrição (opcional)") },
                 placeholder = { Text("ex.: Dinheiro emprestado") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = softFieldColors()
-            )
-            TextField(
-                value = amount,
-                onValueChange = { amount = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Valor original") },
-                placeholder = { Text("300,00") },
-                prefix = { Text("R$ ") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 shape = RoundedCornerShape(14.dp),
                 colors = softFieldColors()
             )
