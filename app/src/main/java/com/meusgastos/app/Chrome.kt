@@ -69,7 +69,7 @@ fun HeaderBar(extraBottom: Dp = 0.dp, content: @Composable ColumnScope.() -> Uni
         Column(
             Modifier
                 .padding(horizontal = 8.dp)
-                .padding(top = 8.dp, bottom = 22.dp + extraBottom),
+                .padding(top = 8.dp, bottom = (if (extraBottom > 0.dp) 22.dp else 8.dp) + extraBottom),
             content = content
         )
     }
@@ -143,6 +143,13 @@ fun AppBottomBar(
                         onDismissRequest = { addOpen = false },
                         properties = androidx.compose.ui.window.PopupProperties(focusable = true)
                     ) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visibleState = remember {
+                                androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
+                            },
+                            enter = androidx.compose.animation.fadeIn() +
+                                androidx.compose.animation.slideInVertically { it / 3 }
+                        ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -156,6 +163,7 @@ fun AppBottomBar(
                             AddOption("Despesa", Icons.Filled.Receipt) {
                                 addOpen = false; onAddExpense()
                             }
+                        }
                         }
                     }
                 }

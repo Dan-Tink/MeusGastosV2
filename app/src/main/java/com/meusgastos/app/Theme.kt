@@ -230,7 +230,7 @@ private val CategoryColors = mapOf(
     "Transporte" to Color(0xFF3B82F6),
     "Moradia" to Color(0xFF7C5CE0),
     "Saúde" to Color(0xFFD6458F),
-    "Lazer" to Color(0xFF1FA85A),
+    "Lazer" to Color(0xFFB46BDB),
     "Compras" to Color(0xFFC47400),
     "Contas" to Color(0xFF0E9AA7),
     "Outros" to Color(0xFF7A8C80)
@@ -385,7 +385,7 @@ private fun appColorsFor(a: AccentTheme, dark: Boolean): AppColors {
         positive = base.positive,
         warning = base.warning,
         violet = base.violet,
-        headerBackground = if (dark) s.dHeader else s.lHeader,
+        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, 0.45f) else s.lHeader,
         onHeader = base.onHeader,
         onHeaderMuted = base.onHeaderMuted
     )

@@ -286,7 +286,7 @@ private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
                 if (!st.settled) {
-                    androidx.compose.material3.FilledTonalButton(
+                    androidx.compose.material3.Button(
                         onClick = onPay,
                         shape = RoundedCornerShape(50),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
