@@ -11,8 +11,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -164,6 +167,7 @@ fun HomeScreen(vm: MainViewModel) {
     var showCategories by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(TAB_SUMMARY) }
     var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
+    var addMenuOpen by remember { mutableStateOf(false) }
     var showNewDebt by remember { mutableStateOf(false) }
     var openDebtId by remember { mutableStateOf<Long?>(null) }
     var payDebtId by remember { mutableStateOf<Long?>(null) }
@@ -230,13 +234,16 @@ fun HomeScreen(vm: MainViewModel) {
                 ),
                 selected = tab,
                 onSelect = { tab = it },
+                addOpen = addMenuOpen,
+                onAddOpenChange = { addMenuOpen = it },
                 onAddExpense = { showNew = true },
                 onAddIncome = { incomeSheet = IncomeSheetState() },
                 onAddDebt = { showNewDebt = true }
             )
         }
     ) { padding ->
-        Column(Modifier.padding(padding)) {
+        Box(Modifier.padding(padding)) {
+        Column(Modifier.fillMaxSize()) {
             // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
             HeaderBar(extraBottom = if (tab == TAB_SUMMARY) 44.dp else 0.dp) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -477,6 +484,16 @@ fun HomeScreen(vm: MainViewModel) {
                         item { Spacer(Modifier.height(24.dp)) }
                     }
                 }
+            }
+        }
+            // Escurece o conteúdo enquanto o menu do "+" está aberto (a barra de baixo fica de fora).
+            androidx.compose.animation.AnimatedVisibility(
+                visible = addMenuOpen,
+                enter = androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.fadeOut(),
+                modifier = Modifier.matchParentSize()
+            ) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
             }
         }
     }

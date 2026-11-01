@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -91,6 +92,8 @@ fun AppBottomBar(
     items: List<NavItem>,
     selected: Int,
     onSelect: (Int) -> Unit,
+    addOpen: Boolean,
+    onAddOpenChange: (Boolean) -> Unit,
     onAddExpense: () -> Unit,
     onAddIncome: () -> Unit,
     onAddDebt: () -> Unit
@@ -109,7 +112,6 @@ fun AppBottomBar(
             NavTab(items[0], selected == 0) { onSelect(0) }
             NavTab(items[1], selected == 1) { onSelect(1) }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                var addOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                 val rotation by androidx.compose.animation.core.animateFloatAsState(
                     if (addOpen) 45f else 0f, label = "addRotation"
                 )
@@ -123,7 +125,7 @@ fun AppBottomBar(
                         .clickable(
                             role = Role.Button,
                             onClickLabel = if (addOpen) "Fechar opções" else "Adicionar",
-                            onClick = { addOpen = !addOpen }
+                            onClick = { onAddOpenChange(!addOpen) }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -143,7 +145,7 @@ fun AppBottomBar(
                     androidx.compose.ui.window.Popup(
                         alignment = Alignment.BottomCenter,
                         offset = androidx.compose.ui.unit.IntOffset(0, -gap),
-                        onDismissRequest = { addOpen = false },
+                        onDismissRequest = { onAddOpenChange(false) },
                         properties = androidx.compose.ui.window.PopupProperties(focusable = true)
                     ) {
                         androidx.compose.animation.AnimatedVisibility(
@@ -161,15 +163,15 @@ fun AppBottomBar(
                             Box(Modifier.width(300.dp).height(140.dp)) {
                                 AddOption("Ganho", Icons.Filled.Payments,
                                     Modifier.align(Alignment.BottomCenter).offset(x = (-88).dp, y = (-6).dp)) {
-                                    addOpen = false; onAddIncome()
+                                    onAddOpenChange(false); onAddIncome()
                                 }
                                 AddOption("Despesa", Icons.Filled.Receipt,
                                     Modifier.align(Alignment.BottomCenter).offset(y = (-50).dp)) {
-                                    addOpen = false; onAddExpense()
+                                    onAddOpenChange(false); onAddExpense()
                                 }
                                 AddOption("Dívida", Icons.Filled.AccountBalanceWallet,
                                     Modifier.align(Alignment.BottomCenter).offset(x = 88.dp, y = (-6).dp)) {
-                                    addOpen = false; onAddDebt()
+                                    onAddOpenChange(false); onAddDebt()
                                 }
                             }
                         }
@@ -186,22 +188,27 @@ fun AppBottomBar(
 /** Botão redondo do menu do "+", com o nome embaixo. */
 @Composable
 private fun AddOption(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
             onClick = onClick,
             modifier = Modifier.size(56.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            shadowElevation = 6.dp
+            color = if (dark) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primaryContainer,
+            shadowElevation = 8.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary,
+                Icon(icon, contentDescription = label,
+                    tint = if (dark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(24.dp))
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.height(6.dp))
+        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
+            Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 

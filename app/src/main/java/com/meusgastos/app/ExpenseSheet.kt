@@ -227,6 +227,10 @@ fun ExpenseSheet(
                 }
 
             }
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(top = 6.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
             Column(
                 modifier = Modifier
                     .weight(1f, fill = false)
