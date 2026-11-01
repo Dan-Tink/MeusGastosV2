@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -325,6 +326,15 @@ fun IncomeSheet(
     }
     var pickDate by remember { mutableStateOf(false) }
     var confirmEnd by remember { mutableStateOf(false) }
+    val amountFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (isNew) {
+            kotlinx.coroutines.delay(350)
+            runCatching { amountFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
 
     val cents = parseCents(amount)
     val day = dayText.toIntOrNull()
@@ -355,7 +365,7 @@ fun IncomeSheet(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            AmountHero(value = amount, onValueChange = { amount = it })
+            AmountHero(value = amount, onValueChange = { amount = it }, fieldModifier = Modifier.focusRequester(amountFocus))
 
             if (isNew) {
                 SegmentedChoice(

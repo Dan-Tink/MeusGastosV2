@@ -212,9 +212,9 @@ private fun Tile(
  * lançamentos do mês. Some sozinho quando não há nada a mostrar.
  */
 @Composable
-fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?, recent: List<Expense>) {
+fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?) {
     val perDay = if (daysLeft != null && daysLeft > 0 && balanceCents > 0) balanceCents / daysLeft else null
-    if (perDay == null && owedCents <= 0 && recent.isEmpty()) return
+    if (perDay == null && owedCents <= 0) return
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -242,18 +242,29 @@ fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?, recent: Li
                         fontWeight = FontWeight.SemiBold)
                 }
             }
-            if (recent.isNotEmpty()) {
-                Text("Últimos gastos", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                recent.forEach { e ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        CategoryBadge(e.category, size = 32.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
-                            style = MaterialTheme.typography.bodyMedium)
-                        Text(e.amountCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold)
-                    }
+        }
+    }
+}
+
+/** Últimos lançamentos do mês, para dar uma olhada rápida sem sair do Resumo. */
+@Composable
+fun RecentExpensesCard(recent: List<Expense>) {
+    if (recent.isEmpty()) return
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Últimos gastos", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            recent.forEach { e ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    CategoryBadge(e.category, size = 32.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
+                        style = MaterialTheme.typography.bodyMedium)
+                    Text(e.amountCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold)
                 }
             }
         }

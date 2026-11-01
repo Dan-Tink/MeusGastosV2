@@ -416,6 +416,16 @@ fun HomeScreen(vm: MainViewModel) {
 
                     // ---------------------------------------------- Resumo: o painel do mês
                     TAB_SUMMARY -> {
+                        item {
+                            InsightsCard(
+                                // Dívida não pertence a um mês: só entra na conta do mês atual.
+                                owedCents = if (month == YearMonth.now()) debts.sumOf { it.status.balanceCents } else 0L,
+                                balanceCents = overview.balance,
+                                daysLeft = if (month == YearMonth.now()) {
+                                    month.lengthOfMonth() - LocalDate.now().dayOfMonth + 1
+                                } else null
+                            )
+                        }
                         captureTip(
                             show = !listenerOn && !captureTipDismissed,
                             onEnable = { showCapture = true },
@@ -433,13 +443,8 @@ fun HomeScreen(vm: MainViewModel) {
                             }
                         }
                         item {
-                            InsightsCard(
-                                owedCents = debts.sumOf { it.status.balanceCents },
-                                balanceCents = overview.balance,
-                                daysLeft = if (month == YearMonth.now()) {
-                                    month.lengthOfMonth() - LocalDate.now().dayOfMonth + 1
-                                } else null,
-                                recent = history
+                            RecentExpensesCard(
+                                history
                                     .filter { YearMonth.from(LocalDate.ofEpochDay(it.epochDay)) == month }
                                     .sortedWith(compareByDescending<Expense> { it.epochDay }.thenByDescending { it.id })
                                     .take(3)

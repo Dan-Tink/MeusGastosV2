@@ -217,6 +217,13 @@ fun ExpenseSheet(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (initial == null && installments > 1 && perInstallment != null && totalCents != null) {
+                        Text(
+                            "${installments}x de ${perInstallment.toMoney()} · total ${totalCents.toMoney()}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
 
             }

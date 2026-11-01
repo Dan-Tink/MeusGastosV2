@@ -136,7 +136,10 @@ fun AppBottomBar(
                             .rotate(rotation)
                     )
                 }
-                if (addOpen) {
+                val menuState = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+                menuState.targetState = addOpen
+                // O popup fica na tela até a animação de saída terminar.
+                if (menuState.currentState || menuState.targetState) {
                     androidx.compose.ui.window.Popup(
                         alignment = Alignment.BottomCenter,
                         offset = androidx.compose.ui.unit.IntOffset(0, -gap),
@@ -144,26 +147,31 @@ fun AppBottomBar(
                         properties = androidx.compose.ui.window.PopupProperties(focusable = true)
                     ) {
                         androidx.compose.animation.AnimatedVisibility(
-                            visibleState = remember {
-                                androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
-                            },
-                            enter = androidx.compose.animation.fadeIn() +
-                                androidx.compose.animation.slideInVertically { it / 3 }
+                            visibleState = menuState,
+                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(
+                                initialScale = 0.5f,
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                            ),
+                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(
+                                targetScale = 0.5f,
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                            )
                         ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            AddOption("Dívida", Icons.Filled.AccountBalanceWallet) {
-                                addOpen = false; onAddDebt()
+                            // Três botões redondos em arco sobre o "+": os das pontas mais baixos, o do meio mais alto.
+                            Box(Modifier.width(300.dp).height(140.dp)) {
+                                AddOption("Ganho", Icons.Filled.Payments,
+                                    Modifier.align(Alignment.BottomCenter).offset(x = (-88).dp, y = (-6).dp)) {
+                                    addOpen = false; onAddIncome()
+                                }
+                                AddOption("Despesa", Icons.Filled.Receipt,
+                                    Modifier.align(Alignment.BottomCenter).offset(y = (-50).dp)) {
+                                    addOpen = false; onAddExpense()
+                                }
+                                AddOption("Dívida", Icons.Filled.AccountBalanceWallet,
+                                    Modifier.align(Alignment.BottomCenter).offset(x = 88.dp, y = (-6).dp)) {
+                                    addOpen = false; onAddDebt()
+                                }
                             }
-                            AddOption("Ganho", Icons.Filled.Payments) {
-                                addOpen = false; onAddIncome()
-                            }
-                            AddOption("Despesa", Icons.Filled.Receipt) {
-                                addOpen = false; onAddExpense()
-                            }
-                        }
                         }
                     }
                 }
@@ -175,25 +183,25 @@ fun AppBottomBar(
     }
 }
 
-/** Botão flutuante em pílula do menu do "+". */
+/** Botão redondo do menu do "+", com o nome embaixo. */
 @Composable
-private fun AddOption(label: String, icon: ImageVector, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.width(140.dp),
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shadowElevation = 6.dp
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+private fun AddOption(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.size(56.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            shadowElevation = 6.dp
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp))
+            }
         }
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

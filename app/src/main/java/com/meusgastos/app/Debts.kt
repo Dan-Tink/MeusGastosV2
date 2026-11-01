@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -731,6 +732,15 @@ private fun DebtFormSheet(
     var description by remember { mutableStateOf(initial?.description ?: "") }
     var amount by remember { mutableStateOf(initial?.originalCents?.toPlain() ?: "") }
     var confirmLower by remember { mutableStateOf(false) }
+    val amountFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (initial == null) {
+            kotlinx.coroutines.delay(350)
+            runCatching { amountFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
 
     val cents = parseCents(amount)
     val valid = creditor.isNotBlank() && cents != null
@@ -765,7 +775,7 @@ private fun DebtFormSheet(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            AmountHero(value = amount, onValueChange = { amount = it })
+            AmountHero(value = amount, onValueChange = { amount = it }, fieldModifier = Modifier.focusRequester(amountFocus))
             Text(
                 "Valor original",
                 modifier = Modifier.fillMaxWidth(),
