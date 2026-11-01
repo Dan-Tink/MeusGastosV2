@@ -316,10 +316,10 @@ fun DebtFlows(
     openId: Long?,
     onOpenDismiss: () -> Unit,
     payRequestId: Long? = null,
-    onPayRequestHandled: () -> Unit = {}
+    onPayRequestHandled: () -> Unit = {},
+    onMessage: (String) -> Unit = {}
 ) {
-    val context = LocalContext.current
-    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+    fun toast(msg: String) = onMessage(msg)
 
     var editing by remember { mutableStateOf<Debt?>(null) }
     var payingId by remember { mutableStateOf<Long?>(null) }
@@ -643,73 +643,91 @@ private fun PaymentDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var pickDate by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val amountFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(350)
+        runCatching { amountFocus.requestFocus() }
+        keyboard?.show()
+    }
+    fun submit() {
+        val cents = parseCents(amount)
+        val result = if (cents == null) PaymentCheck.INVALID_AMOUNT
+        else checkPayment(view.debt.originalCents, view.paidCents, cents)
+        if (cents == null || result != PaymentCheck.OK) {
+            error = paymentMessage(result, st.balanceCents)
+        } else {
+            onConfirm(cents, date, note) { msg -> error = msg }
+        }
+    }
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Registrar pagamento") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "${view.debt.creditor} · saldo devedor ${st.balanceCents.toMoney()}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextField(
-                    value = amount,
-                    onValueChange = {
-                        amount = it
-                        error = null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Valor pago") },
-                    placeholder = { Text("50,00") },
-                    prefix = { Text("R$ ") },
-                    singleLine = true,
-                    isError = error != null,
-                    supportingText = error?.let { msg -> { Text(msg) } },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = softFieldColors()
-                )
-                TextButton(onClick = {
-                    amount = st.balanceCents.toPlain()
-                    error = null
-                }) { Text("Pagar tudo (${st.balanceCents.toMoney()})") }
-                OutlinedButton(
-                    onClick = { pickDate = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Data: ${date.fmt()}")
-                }
-                TextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Observação (opcional)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = softFieldColors()
-                )
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Registrar pagamento",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            AmountHero(
+                value = amount,
+                onValueChange = { amount = it; error = null },
+                fieldModifier = Modifier.focusRequester(amountFocus)
+            )
+            Text(
+                error ?: "${view.debt.creditor} · saldo devedor ${st.balanceCents.toMoney()}",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (error != null) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                PillChip(false, { amount = st.balanceCents.toPlain(); error = null }, "Pagar tudo (${st.balanceCents.toMoney()})")
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val cents = parseCents(amount)
-                val result = if (cents == null) PaymentCheck.INVALID_AMOUNT
-                else checkPayment(view.debt.originalCents, view.paidCents, cents)
-                if (cents == null || result != PaymentCheck.OK) {
-                    error = paymentMessage(result, st.balanceCents)
-                } else {
-                    onConfirm(cents, date, note) { msg -> error = msg }
+            androidx.compose.material3.Surface(
+                onClick = { pickDate = true },
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Text(date.fmt(), fontWeight = FontWeight.Medium)
                 }
-            }) { Text("Registrar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
+            }
+            TextField(
+                value = note,
+                onValueChange = { note = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Observação (opcional)") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
+            )
+            androidx.compose.material3.Button(
+                onClick = { submit() },
+                enabled = parseCents(amount) != null,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) { Text("Registrar pagamento", fontWeight = FontWeight.Bold) }
+        }
+    }
 
     if (pickDate) {
         PickDate(initial = date, onPick = { date = it }, onDismiss = { pickDate = false })

@@ -291,7 +291,13 @@ fun AppearanceSheet(
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text("Aparência", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Aparência",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             // ---- Prévia em miniatura ----
             Surface(
@@ -310,7 +316,7 @@ fun AppearanceSheet(
                             .padding(horizontal = 16.dp)
                             .padding(top = 12.dp, bottom = 28.dp)
                     ) {
-                        Text("Outubro 2026", color = OnHeader, fontWeight = FontWeight.Bold)
+                        Text(java.time.YearMonth.now().label(), color = OnHeader, fontWeight = FontWeight.Bold)
                     }
                     Surface(
                         modifier = Modifier

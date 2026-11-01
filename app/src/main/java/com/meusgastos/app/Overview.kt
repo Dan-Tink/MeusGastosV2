@@ -213,7 +213,7 @@ private fun Tile(
  */
 @Composable
 fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?) {
-    val perDay = if (daysLeft != null && daysLeft > 0 && balanceCents > 0) balanceCents / daysLeft else null
+    val perDay = if (daysLeft != null && daysLeft > 0 && balanceCents > 0) (balanceCents + daysLeft / 2) / daysLeft else null
     if (perDay == null && owedCents <= 0) return
     Card(
         shape = RoundedCornerShape(20.dp),

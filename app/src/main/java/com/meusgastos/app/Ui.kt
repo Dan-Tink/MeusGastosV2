@@ -92,6 +92,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextField
 import java.time.YearMonth
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -181,8 +182,13 @@ fun HomeScreen(vm: MainViewModel) {
     var pendingHour by remember { mutableStateOf(21) }
 
     val context = LocalContext.current
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    val snackScope = androidx.compose.runtime.rememberCoroutineScope()
     fun toast(msg: String) {
-        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        snackScope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            snackbar.showSnackbar(msg)
+        }
     }
 
     val csvLauncher = rememberLauncherForActivityResult(
@@ -223,6 +229,7 @@ fun HomeScreen(vm: MainViewModel) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
         bottomBar = {
             AppBottomBar(
                 items = listOf(
@@ -623,7 +630,8 @@ fun HomeScreen(vm: MainViewModel) {
         openId = openDebtId,
         onOpenDismiss = { openDebtId = null },
         payRequestId = payDebtId,
-        onPayRequestHandled = { payDebtId = null }
+        onPayRequestHandled = { payDebtId = null },
+        onMessage = ::toast
     )
 
     incomeSheet?.let { st ->

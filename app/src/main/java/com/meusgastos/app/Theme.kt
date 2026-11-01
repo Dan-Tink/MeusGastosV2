@@ -212,7 +212,7 @@ private val AppTypography = Typography(
     bodySmall = Base.bodySmall.app(),
     labelLarge = Base.labelLarge.app(),
     labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp).app(),
-    labelSmall = Base.labelSmall.copy(letterSpacing = 0.4.sp).app()
+    labelSmall = Base.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.3.sp).app()
 )
 
 // Cores de gráficos e marcadores: tons médios que passam de 3:1 tanto no fundo branco quanto
@@ -238,8 +238,8 @@ private val CategoryColors = mapOf(
     "Moradia" to Color(0xFF7C5CE0),
     "Saúde" to Color(0xFFD6458F),
     "Lazer" to Color(0xFFB46BDB),
-    "Compras" to Color(0xFFC47400),
-    "Contas" to Color(0xFF0E9AA7),
+    "Compras" to Color(0xFFD4A017),
+    "Contas" to Color(0xFF6B7F99),
     "Outros" to Color(0xFF7A8C80)
 )
 
