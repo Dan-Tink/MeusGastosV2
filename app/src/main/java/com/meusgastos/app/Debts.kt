@@ -147,7 +147,7 @@ private fun DebtSummaryCard(t: DebtTotals) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                "Soma do que ainda falta pagar. É dinheiro que devo, não são despesas já pagas.",
+                "Dinheiro que devo; não conta como gasto do mês.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

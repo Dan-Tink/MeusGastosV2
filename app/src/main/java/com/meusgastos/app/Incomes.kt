@@ -85,7 +85,7 @@ fun LazyListScope.incomesTab(
             icon = Icons.Default.Repeat,
             title = f.description,
             subtitle = "Todo dia ${f.dayOfMonth}",
-            badge = "todo mês",
+            badge = "",
             cents = f.amountCents,
             onClick = { onEditFixed(f) }
         )
@@ -268,8 +268,8 @@ private fun IncomeRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.width(8.dp))
-                    androidx.compose.material3.Surface(
+                    if (badge.isNotBlank()) Spacer(Modifier.width(8.dp))
+                    if (badge.isNotBlank()) androidx.compose.material3.Surface(
                         shape = RoundedCornerShape(50),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest
                     ) {

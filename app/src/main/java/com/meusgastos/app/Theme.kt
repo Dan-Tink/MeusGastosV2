@@ -19,6 +19,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
@@ -175,7 +176,13 @@ val MoneyFont: FontFamily get() = AppFont
 
 /** Borda fina e discreta dos cartões, no lugar de sombras pesadas. */
 val CardBorder: BorderStroke
-    @Composable @ReadOnlyComposable get() = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    @Composable @ReadOnlyComposable get() {
+        val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        return BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (dark) 0.4f else 1f)
+        )
+    }
 
 // Cantos arredondados: cartões 16 dp, diálogos e bottom sheets 20 dp.
 private val AppShapes = Shapes(

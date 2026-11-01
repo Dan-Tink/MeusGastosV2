@@ -206,3 +206,56 @@ private fun Tile(
         )
     }
 }
+
+/**
+ * Resumo acionável: quanto dá para gastar por dia, o peso das dívidas em aberto e os últimos
+ * lançamentos do mês. Some sozinho quando não há nada a mostrar.
+ */
+@Composable
+fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?, recent: List<Expense>) {
+    val perDay = if (daysLeft != null && daysLeft > 0 && balanceCents > 0) balanceCents / daysLeft else null
+    if (perDay == null && owedCents <= 0 && recent.isEmpty()) return
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (perDay != null) {
+                Column {
+                    Text("Para o resto do mês", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${perDay.toMoney()} por dia", style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                }
+            }
+            if (owedCents > 0) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Dívidas em aberto", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(owedCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Saldo depois delas", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text((balanceCents - owedCents).toMoney(), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold)
+                }
+            }
+            if (recent.isNotEmpty()) {
+                Text("Últimos gastos", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                recent.forEach { e ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        CategoryBadge(e.category, size = 32.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
+                            style = MaterialTheme.typography.bodyMedium)
+                        Text(e.amountCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}

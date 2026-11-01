@@ -432,6 +432,19 @@ fun HomeScreen(vm: MainViewModel) {
                                 )
                             }
                         }
+                        item {
+                            InsightsCard(
+                                owedCents = debts.sumOf { it.status.balanceCents },
+                                balanceCents = overview.balance,
+                                daysLeft = if (month == YearMonth.now()) {
+                                    month.lengthOfMonth() - LocalDate.now().dayOfMonth + 1
+                                } else null,
+                                recent = history
+                                    .filter { YearMonth.from(LocalDate.ofEpochDay(it.epochDay)) == month }
+                                    .sortedWith(compareByDescending<Expense> { it.epochDay }.thenByDescending { it.id })
+                                    .take(3)
+                            )
+                        }
                         item { Spacer(Modifier.height(24.dp)) }
                     }
 
