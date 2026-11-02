@@ -178,9 +178,10 @@ val MoneyFont: FontFamily get() = AppFont
 val CardBorder: BorderStroke
     @Composable @ReadOnlyComposable get() {
         val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        // Escuro: filete translúcido claro. Claro: o contorno suave de sempre.
         return BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (dark) 0.4f else 1f)
+            if (dark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant
         )
     }
 

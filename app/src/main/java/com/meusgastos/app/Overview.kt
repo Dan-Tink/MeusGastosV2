@@ -69,11 +69,12 @@ fun OverviewCard(
     }
 
     Card(
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        shape = RoundedCornerShape(Radii.card),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.padding(Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -114,7 +115,7 @@ fun OverviewCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
+                        .clip(Bars.shape),
                     color = barColor,
                     trackColor = MaterialTheme.colorScheme.outlineVariant
                 )

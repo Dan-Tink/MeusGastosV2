@@ -339,7 +339,8 @@ fun IncomeSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -383,7 +384,7 @@ fun IncomeSheet(
             TextField(
                 value = desc,
                 onValueChange = { desc = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Descrição") },
                 placeholder = { Text(if (fixedMode) "ex.: Salário" else "ex.: Freela") },
                 singleLine = true,
@@ -394,7 +395,7 @@ fun IncomeSheet(
                 TextField(
                     value = dayText,
                     onValueChange = { dayText = it.filter(Char::isDigit).take(2) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                     label = { Text("Dia do mês em que cai") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

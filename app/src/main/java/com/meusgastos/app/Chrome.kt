@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -113,9 +114,23 @@ fun AppBottomBar(
                     if (addOpen) 45f else 0f, label = "addRotation"
                 )
                 val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 80.dp.roundToPx() }
+                val glowColor = MaterialTheme.colorScheme.primary
                 Box(
                     Modifier
                         .size(56.dp)
+                        // Brilho suave na cor do tema ao redor do botão (cabe dentro da barra de 72 dp).
+                        .drawBehind {
+                            val r = 36.dp.toPx()
+                            drawCircle(
+                                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                    0.70f to glowColor.copy(alpha = 0.38f),
+                                    1f to Color.Transparent,
+                                    center = center,
+                                    radius = r
+                                ),
+                                radius = r
+                            )
+                        }
                         .shadow(6.dp, CircleShape)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
@@ -278,7 +293,8 @@ fun AppearanceSheet(
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = sheetColor(),
+        shape = SheetShape,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(

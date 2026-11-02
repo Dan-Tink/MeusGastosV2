@@ -258,7 +258,8 @@ fun RecurringSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier

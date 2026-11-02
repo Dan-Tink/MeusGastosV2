@@ -354,7 +354,7 @@ fun HomeScreen(vm: MainViewModel) {
                 TextField(
                     value = filters.query,
                     onValueChange = { vm.setQuery(it) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusGlow(16.dp),
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     colors = softFieldColors(),
@@ -784,7 +784,7 @@ private fun SummaryCard(state: MonthSummary) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
+                                .clip(Bars.shape),
                             color = color,
                             trackColor = MaterialTheme.colorScheme.outlineVariant
                         )
@@ -1030,7 +1030,8 @@ private fun FiltersSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier

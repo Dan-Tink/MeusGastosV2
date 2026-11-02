@@ -82,8 +82,8 @@ fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false) {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val bg = when {
         selected -> tint
-        dark -> tint.copy(alpha = 0.30f)
-        else -> tint.copy(alpha = 0.16f)
+        dark -> tint.copy(alpha = 0.15f)
+        else -> tint.copy(alpha = 0.15f)
     }
     val fg = when {
         selected -> Color.White
@@ -161,10 +161,10 @@ fun PillChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Mo
 /** Campos preenchidos, com fundo suave e sem linha embaixo. */
 @Composable
 fun softFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-    errorContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+    errorContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
     disabledIndicatorColor = Color.Transparent,

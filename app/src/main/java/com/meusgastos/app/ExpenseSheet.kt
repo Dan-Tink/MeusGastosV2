@@ -176,7 +176,8 @@ fun ExpenseSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = sheetColor(),
+        shape = SheetShape,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(Modifier.fillMaxWidth().imePadding()) {
@@ -313,7 +314,7 @@ fun ExpenseSheet(
                     TextField(
                         value = desc,
                         onValueChange = { desc = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                         placeholder = { Text("Descrição (ex.: coxinha)") },
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
@@ -389,7 +390,7 @@ fun ExpenseSheet(
                                 TextField(
                                     value = instText,
                                     onValueChange = { instText = it.filter(Char::isDigit).take(3) },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                                     placeholder = { Text("Número de parcelas") },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

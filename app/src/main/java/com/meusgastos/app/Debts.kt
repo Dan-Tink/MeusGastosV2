@@ -269,7 +269,7 @@ private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
+                    .clip(Bars.shape),
                 color = PositiveColor,
                 trackColor = MaterialTheme.colorScheme.outlineVariant
             )
@@ -456,7 +456,8 @@ private fun DebtDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -511,7 +512,7 @@ private fun DebtDetailSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
+                            .clip(Bars.shape),
                         color = PositiveColor,
                         trackColor = MaterialTheme.colorScheme.outlineVariant
                     )
@@ -659,7 +660,8 @@ private fun PaymentDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -708,7 +710,7 @@ private fun PaymentDialog(
             TextField(
                 value = note,
                 onValueChange = { note = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Observação (opcional)") },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -769,7 +771,8 @@ private fun DebtFormSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -798,7 +801,7 @@ private fun DebtFormSheet(
             TextField(
                 value = creditor,
                 onValueChange = { creditor = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Credor") },
                 placeholder = { Text("ex.: Minha irmã") },
                 singleLine = true,
@@ -808,7 +811,7 @@ private fun DebtFormSheet(
             TextField(
                 value = description,
                 onValueChange = { description = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Descrição (opcional)") },
                 placeholder = { Text("ex.: Dinheiro emprestado") },
                 singleLine = true,
