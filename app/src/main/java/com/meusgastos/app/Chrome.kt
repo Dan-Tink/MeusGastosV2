@@ -294,8 +294,7 @@ fun AppearanceSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = sheetColor(),
-        shape = SheetShape,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = SheetShape
     ) {
         Column(
             Modifier
