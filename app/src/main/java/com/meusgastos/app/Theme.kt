@@ -230,7 +230,6 @@ private val TypePalette = listOf(
 fun typeColor(name: String): Color =
     TypePalette[(name.hashCode() and Int.MAX_VALUE) % TypePalette.size]
 
-fun paletteColor(index: Int): Color = TypePalette[index % TypePalette.size]
 
 private val CategoryColors = mapOf(
     "Alimentação" to Color(0xFFE8590C),

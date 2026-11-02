@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
@@ -443,7 +445,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { runRecurring() }
     }
 
-    private suspend fun runRecurring() {
+    private val recurringLock = Mutex()
+
+    private suspend fun runRecurring() = recurringLock.withLock {
         val now = YearMonth.now()
         for (r in dao.recurringOnce()) {
             val last = runCatching { YearMonth.parse(r.lastGenerated) }.getOrNull() ?: now.minusMonths(1)
