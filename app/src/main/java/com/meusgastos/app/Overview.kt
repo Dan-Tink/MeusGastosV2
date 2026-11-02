@@ -235,12 +235,6 @@ fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?) {
                     Text(owedCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Saldo depois delas", style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text((balanceCents - owedCents).toMoney(), style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold)
-                }
             }
         }
     }
