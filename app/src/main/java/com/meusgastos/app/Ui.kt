@@ -386,7 +386,7 @@ fun HomeScreen(vm: MainViewModel) {
                 )
             }
 
-                        item { ListTotal(state) }
+                        item { ListTotal(state, filters.creditOnly) }
 
                         if (state.items.isEmpty()) {
                             item {
@@ -717,7 +717,7 @@ fun HomeScreen(vm: MainViewModel) {
 
 /** Linha enxuta no topo da lista de gastos: quanto soma o que está na tela. */
 @Composable
-private fun ListTotal(state: UiState) {
+private fun ListTotal(state: UiState, creditOnly: Boolean = false) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -725,7 +725,8 @@ private fun ListTotal(state: UiState) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "Total · ${state.items.size} lançamento(s)",
+            if (creditOnly) "Fatura do cartão · ${state.items.size} compra(s)"
+            else "Total · ${state.items.size} lançamento(s)",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
@@ -1030,6 +1031,7 @@ private fun FiltersSheet(
     var from by remember { mutableStateOf(filters.from) }
     var to by remember { mutableStateOf(filters.to) }
     var byValue by remember { mutableStateOf(filters.sortByValue) }
+    var creditOnly by remember { mutableStateOf(filters.creditOnly) }
     var pickFrom by remember { mutableStateOf(false) }
     var pickTo by remember { mutableStateOf(false) }
 
@@ -1125,6 +1127,24 @@ private fun FiltersSheet(
             }
 
             Text(
+                "Pagamento",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !creditOnly,
+                    onClick = { creditOnly = false },
+                    label = { Text("Todos") }
+                )
+                FilterChip(
+                    selected = creditOnly,
+                    onClick = { creditOnly = true },
+                    label = { Text("Cartão de crédito (fatura)") }
+                )
+            }
+
+            Text(
                 "Período (substitui o mês)",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1181,7 +1201,8 @@ private fun FiltersSheet(
                                 maxCents = parseCents(maxText),
                                 from = from,
                                 to = to,
-                                sortByValue = byValue
+                                sortByValue = byValue,
+                                creditOnly = creditOnly
                             )
                         )
                     },

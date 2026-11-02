@@ -86,6 +86,7 @@ suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
                 .put("groupId", it.groupId)
                 .put("installmentNo", it.installmentNo)
                 .put("installmentCount", it.installmentCount)
+                .put("isCredit", it.isCredit)
         })
     )
     root.put(
@@ -214,6 +215,7 @@ suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): 
                 groupId = if (it.has("groupId")) it.getLong("groupId") else null,
                 installmentNo = it.optInt("installmentNo", 0),
                 installmentCount = it.optInt("installmentCount", 0),
+                isCredit = it.optBoolean("isCredit", false),
                 description = it.getString("description"),
                 amountCents = it.getLong("amountCents"),
                 epochDay = it.getLong("epochDay")

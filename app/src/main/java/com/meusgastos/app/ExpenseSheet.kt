@@ -147,9 +147,9 @@ fun ExpenseSheet(
         }
     }
 
-    // Compra no crédito (só em gasto novo): entra no mês seguinte, no mesmo dia (ou no último dia dele).
+    // Compra no crédito (só em gasto novo): cai na fatura, sempre no dia 5 do mês seguinte.
     val effDate: LocalDate = if (initial == null && credit) {
-        YearMonth.from(date).plusMonths(1).let { it.atDay(minOf(date.dayOfMonth, it.lengthOfMonth())) }
+        YearMonth.from(date).plusMonths(1).atDay(CREDIT_DUE_DAY)
     } else date
 
     fun buildExpense() = Expense(
@@ -158,6 +158,7 @@ fun ExpenseSheet(
         description = desc.trim(),
         amountCents = cents ?: 0L,
         epochDay = effDate.toEpochDay(),
+        isCredit = if (initial == null) credit else initial.isCredit,
         category = category,
         groupId = initial?.groupId,
         installmentNo = initial?.installmentNo ?: 0,
@@ -430,8 +431,8 @@ fun ExpenseSheet(
                             Column(Modifier.weight(1f)) {
                                 Text("Compra no crédito", fontWeight = FontWeight.Medium)
                                 Text(
-                                    if (credit) "Entra em ${effDate.fmt()} (mês seguinte)"
-                                    else "Ligue para lançar no mês seguinte",
+                                    if (credit) "Entra na fatura de ${effDate.fmt()} (dia $CREDIT_DUE_DAY)"
+                                    else "Ligue para lançar na fatura do mês seguinte",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -658,3 +659,6 @@ private fun ManageLink(onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 6.dp)
     )
 }
+
+/** Dia do mês em que a fatura do cartão cai. */
+private const val CREDIT_DUE_DAY = 5

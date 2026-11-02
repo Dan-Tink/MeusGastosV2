@@ -27,7 +27,9 @@ data class Filters(
     val maxCents: Long? = null,
     val from: LocalDate? = null,
     val to: LocalDate? = null,
-    val sortByValue: Boolean = false
+    val sortByValue: Boolean = false,
+    /** Só compras no cartão de crédito: o total mostrado é o da fatura. */
+    val creditOnly: Boolean = false
 ) {
     val dateActive: Boolean get() = from != null || to != null
     val activeCount: Int
@@ -36,7 +38,8 @@ data class Filters(
             categories.isNotEmpty(),
             minCents != null || maxCents != null,
             dateActive,
-            sortByValue
+            sortByValue,
+            creditOnly
         ).count { it }
 }
 
@@ -236,6 +239,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     e.category.norm().contains(q)) &&
                 (f.types.isEmpty() || e.type in f.types) &&
                 (f.categories.isEmpty() || e.category in f.categories) &&
+                (!f.creditOnly || e.isCredit) &&
                 (minC == null || e.amountCents >= minC) &&
                 (maxC == null || e.amountCents <= maxC)
         }

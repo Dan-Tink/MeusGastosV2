@@ -31,7 +31,9 @@ data class Expense(
     val groupId: Long? = null,
     /** Número desta parcela (1..installmentCount). 0 = gasto avulso. */
     val installmentNo: Int = 0,
-    val installmentCount: Int = 0
+    val installmentCount: Int = 0,
+    /** Compra no cartão de crédito: a data guardada já é a da fatura (dia 5 do mês seguinte). */
+    @ColumnInfo(defaultValue = "0") val isCredit: Boolean = false
 )
 
 @Entity(tableName = "types")
@@ -736,12 +738,19 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/** Só acrescenta a coluna do crédito (padrão 0). Nenhum dado existente é alterado ou apagado. */
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE expenses ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [
         Expense::class, ExpenseType::class, Category::class, Income::class,
         Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -757,7 +766,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")
