@@ -23,11 +23,18 @@ android {
         applicationId = "com.meusgastos.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 26
-        versionName = "1.8.8"
+        versionCode = 27
+        versionName = "1.8.9"
     }
 
     signingConfigs {
+        // Chave de teste fixa: assim cada build de teste assina igual e dá para instalar por cima.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (releaseSigningConfigured) {
             create("release") {
                 storeFile = file(releaseStoreFile!!)

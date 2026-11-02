@@ -93,7 +93,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -237,7 +236,7 @@ fun HomeScreen(vm: MainViewModel) {
         Box(Modifier.padding(padding)) {
         Column(Modifier.fillMaxSize()) {
             // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
-            HeaderBar(extraBottom = if (tab == TAB_SUMMARY) 44.dp else 0.dp) {
+            HeaderBar {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (tab != TAB_DEBTS) {
                         IconButton(onClick = { vm.month.value = month.minusMonths(1) }) {
@@ -318,16 +317,11 @@ fun HomeScreen(vm: MainViewModel) {
                 }
             }
 
-            // Cartão de saldo: metade sobre o verde do cabeçalho, metade sobre o fundo.
+            // Cartão de saldo logo abaixo do cabeçalho, que tem a mesma altura em todas as abas.
             if (tab == TAB_SUMMARY) {
                 Box(
                     Modifier
-                        .padding(horizontal = 16.dp)
-                        .layout { measurable, constraints ->
-                            val placeable = measurable.measure(constraints)
-                            val up = 44.dp.roundToPx()
-                            layout(placeable.width, placeable.height - up) { placeable.place(0, -up) }
-                        }
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp)
                 ) {
                     OverviewCard(
                         o = overview,
