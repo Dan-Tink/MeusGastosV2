@@ -85,6 +85,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -249,11 +250,16 @@ fun HomeScreen(vm: MainViewModel) {
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            if (tab == TAB_DEBTS) "Dívidas" else month.label(),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Crossfade(
+                            targetState = if (tab == TAB_DEBTS) "Dívidas" else month.label(),
+                            label = "tituloMes"
+                        ) { title ->
+                            Text(
+                                title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         val hint = if (tab != TAB_EXPENSES) null else when (state.scope) {
                             Scope.RANGE -> "Período personalizado"
                             Scope.SEARCH -> "Buscando em todos os meses"

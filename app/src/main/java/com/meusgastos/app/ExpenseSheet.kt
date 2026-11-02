@@ -46,6 +46,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -108,6 +110,7 @@ fun ExpenseSheet(
     var showCustom by remember { mutableStateOf(false) }
     var amountIsTotal by remember { mutableStateOf(false) }
     var pickDate by remember { mutableStateOf(false) }
+    var credit by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var scopeAction by remember { mutableStateOf<ScopeAction?>(null) }
 
@@ -144,12 +147,17 @@ fun ExpenseSheet(
         }
     }
 
+    // Compra no crédito (só em gasto novo): entra no mês seguinte, no mesmo dia (ou no último dia dele).
+    val effDate: LocalDate = if (initial == null && credit) {
+        YearMonth.from(date).plusMonths(1).let { it.atDay(minOf(date.dayOfMonth, it.lengthOfMonth())) }
+    } else date
+
     fun buildExpense() = Expense(
         id = initial?.id ?: 0L,
         type = type,
         description = desc.trim(),
         amountCents = cents ?: 0L,
-        epochDay = date.toEpochDay(),
+        epochDay = effDate.toEpochDay(),
         category = category,
         groupId = initial?.groupId,
         installmentNo = initial?.installmentNo ?: 0,
@@ -295,9 +303,10 @@ fun ExpenseSheet(
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         c.name,
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                         fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = if (sel) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -406,9 +415,35 @@ fun ExpenseSheet(
                     }
                 }
 
+                // ---- Crédito: a compra cai na fatura do mês seguinte (só em gasto novo) ----
+                if (initial == null) {
+                    Surface(
+                        onClick = { credit = !credit },
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth().animateContentSize()
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Compra no crédito", fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (credit) "Entra em ${effDate.fmt()} (mês seguinte)"
+                                    else "Ligue para lançar no mês seguinte",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            androidx.compose.material3.Switch(checked = credit, onCheckedChange = { credit = it })
+                        }
+                    }
+                }
+
                 // ---- Resumo ao vivo do parcelamento ----
                 if (initial == null && installments > 1 && perInstallment != null && totalCents != null) {
-                    val last = YearMonth.from(date).plusMonths((installments - 1).toLong())
+                    val last = YearMonth.from(effDate).plusMonths((installments - 1).toLong())
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
@@ -430,7 +465,7 @@ fun ExpenseSheet(
                             )
                             Text("Total: ${totalCents.toMoney()}", fontFamily = MoneyFont)
                             Text(
-                                "1ª em ${date.fmt()} • última em ${last.monthName()} de ${last.year}",
+                                "1ª em ${effDate.fmt()} • última em ${last.monthName()} de ${last.year}",
                                 style = MaterialTheme.typography.labelSmall
                             )
                             if (firstExtra > 0) {

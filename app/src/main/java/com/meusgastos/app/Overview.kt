@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,7 +75,7 @@ fun OverviewCard(
         border = CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(Modifier.padding(Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+        Column(Modifier.animateContentSize().padding(Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -173,7 +174,7 @@ private fun Tile(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(8.dp)
+                    .size(6.dp)
                     .clip(CircleShape)
                     .background(color)
             )
@@ -220,7 +221,7 @@ fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().animateContentSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (perDay != null) {
                 Column {
                     Text("Para o resto do mês", style = MaterialTheme.typography.labelMedium,

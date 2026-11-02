@@ -28,9 +28,6 @@ import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.FilterChipDefaults
@@ -38,6 +35,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,8 +111,10 @@ fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false) {
     }
 }
 
-/** Escolha entre poucas opções mutuamente exclusivas (controle segmentado, sem borda). */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Escolha entre poucas opções (Fixa/Variável etc.): uma "calha" em forma de pílula com a seleção
+ * deslizando por cima dela, na cor do tema.
+ */
 @Composable
 fun SegmentedChoice(
     options: List<String>,
@@ -115,22 +122,48 @@ fun SegmentedChoice(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
-        options.forEachIndexed { i, label ->
-            SegmentedButton(
-                selected = i == selectedIndex,
-                onClick = { onSelect(i) },
-                shape = SegmentedButtonDefaults.itemShape(i, options.size),
-                icon = {},
-                colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = MaterialTheme.colorScheme.primary,
-                    activeContentColor = MaterialTheme.colorScheme.onPrimary,
-                    activeBorderColor = Color.Transparent,
-                    inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
-                    inactiveBorderColor = Color.Transparent
+    val scheme = MaterialTheme.colorScheme
+    val n = options.size.coerceAtLeast(1)
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(scheme.surfaceContainerHighest.copy(alpha = 0.6f))
+            .padding(4.dp)
+    ) {
+        val segment = maxWidth / n
+        val thumbX by animateDpAsState(segment * selectedIndex, label = "segmentThumb")
+        Box(
+            Modifier
+                .offset(x = thumbX)
+                .width(segment)
+                .height(44.dp)
+                .clip(CircleShape)
+                .background(scheme.primary)
+        )
+        Row(Modifier.fillMaxWidth()) {
+            options.forEachIndexed { i, label ->
+                val active = i == selectedIndex
+                val textColor by animateColorAsState(
+                    if (active) scheme.onPrimary else scheme.onSurface, label = "segmentText"
                 )
-            ) { Text(label, maxLines = 1) }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(CircleShape)
+                        .selectable(selected = active, role = Role.RadioButton, onClick = { onSelect(i) }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        color = textColor,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
@@ -197,18 +230,23 @@ fun AmountHero(
     fieldModifier: Modifier = Modifier
 ) {
     val style: TextStyle = MaterialTheme.typography.displaySmall.copy(
+        fontSize = 40.sp,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurface
     )
     Row(
         modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Bottom
     ) {
+        // "R$" menor e mais leve, apoiado na linha de base do número: o valor é o protagonista.
         Text(
             "R$",
-            style = style.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-            modifier = Modifier.padding(end = 8.dp)
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier.padding(end = 6.dp, bottom = 6.dp)
         )
         // O texto mostrado é sempre a versão com máscara; o cursor fica sempre no fim.
         val shown = maskMoney(value)
