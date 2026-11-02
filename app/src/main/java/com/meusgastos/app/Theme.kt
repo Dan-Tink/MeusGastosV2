@@ -384,6 +384,18 @@ private fun darkFor(a: AccentTheme): ColorScheme {
     )
 }
 
+/**
+ * Cabeçalho do tema claro menos saturado e um pouco mais fundo, igual para as seis cores
+ * (mesma matiz, só o saturação e brilho mudam), para cansar menos a vista.
+ */
+private fun softenHeader(color: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    hsv[1] = hsv[1] * 0.78f
+    hsv[2] = hsv[2] * 0.92f
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}
+
 private fun appColorsFor(a: AccentTheme, dark: Boolean): AppColors {
     val s = a.spec()
     val base = if (dark) DarkAppColors else LightAppColors
@@ -391,7 +403,7 @@ private fun appColorsFor(a: AccentTheme, dark: Boolean): AppColors {
         positive = base.positive,
         warning = base.warning,
         violet = base.violet,
-        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, 0.45f) else s.lHeader,
+        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, 0.45f) else softenHeader(s.lHeader),
         onHeader = base.onHeader,
         onHeaderMuted = base.onHeaderMuted
     )
