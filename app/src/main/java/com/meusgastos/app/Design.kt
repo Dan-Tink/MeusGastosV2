@@ -39,6 +39,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -204,17 +210,25 @@ fun AmountHero(
             style = style.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
             modifier = Modifier.padding(end = 8.dp)
         )
+        // O texto mostrado é sempre a versão com máscara; o cursor fica sempre no fim.
+        val shown = maskMoney(value)
+        var field by remember { mutableStateOf(TextFieldValue(shown, TextRange(shown.length))) }
+        if (field.text != shown) field = TextFieldValue(shown, TextRange(shown.length))
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = field,
+            onValueChange = { n ->
+                val m = maskMoney(n.text)
+                field = TextFieldValue(m, TextRange(m.length))
+                onValueChange(m)
+            },
             modifier = fieldModifier.width(IntrinsicSize.Min),
             textStyle = style,
             singleLine = true,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             decorationBox = { inner ->
                 Box(contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) {
+                    if (shown.isEmpty()) {
                         Text("0,00", style = style.copy(color = MaterialTheme.colorScheme.outline))
                     }
                     inner()

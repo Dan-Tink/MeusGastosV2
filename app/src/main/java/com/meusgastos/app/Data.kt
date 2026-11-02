@@ -258,6 +258,9 @@ abstract class ExpenseDao {
     @Query("UPDATE recurring SET type = :newName WHERE type = :oldName")
     abstract suspend fun renameTypeInRecurring(oldName: String, newName: String)
 
+    @Query("UPDATE pending SET type = :newName WHERE type = :oldName")
+    abstract suspend fun renameTypeInPending(oldName: String, newName: String)
+
     @Query("UPDATE types SET name = :newName WHERE name = :oldName")
     abstract suspend fun renameTypeRow(oldName: String, newName: String)
 
@@ -266,7 +269,8 @@ abstract class ExpenseDao {
 
     @Query(
         "SELECT (SELECT COUNT(*) FROM expenses WHERE type = :name) + " +
-            "(SELECT COUNT(*) FROM recurring WHERE type = :name)"
+            "(SELECT COUNT(*) FROM recurring WHERE type = :name) + " +
+            "(SELECT COUNT(*) FROM pending WHERE type = :name AND status = 0)"
     )
     abstract suspend fun countByType(name: String): Int
 
@@ -275,6 +279,7 @@ abstract class ExpenseDao {
         if (oldName == newName) return
         renameTypeInExpenses(oldName, newName)
         renameTypeInRecurring(oldName, newName)
+        renameTypeInPending(oldName, newName)
         if (typeExists(newName) > 0) deleteType(oldName) else renameTypeRow(oldName, newName)
     }
 
@@ -294,6 +299,9 @@ abstract class ExpenseDao {
     @Query("UPDATE recurring SET category = :newName WHERE category = :oldName")
     abstract suspend fun renameCategoryInRecurring(oldName: String, newName: String)
 
+    @Query("UPDATE pending SET category = :newName WHERE category = :oldName")
+    abstract suspend fun renameCategoryInPending(oldName: String, newName: String)
+
     @Query("UPDATE categories SET name = :newName WHERE name = :oldName")
     abstract suspend fun renameCategoryRow(oldName: String, newName: String)
 
@@ -302,7 +310,8 @@ abstract class ExpenseDao {
 
     @Query(
         "SELECT (SELECT COUNT(*) FROM expenses WHERE category = :name) + " +
-            "(SELECT COUNT(*) FROM recurring WHERE category = :name)"
+            "(SELECT COUNT(*) FROM recurring WHERE category = :name) + " +
+            "(SELECT COUNT(*) FROM pending WHERE category = :name AND status = 0)"
     )
     abstract suspend fun countByCategory(name: String): Int
 
@@ -311,6 +320,7 @@ abstract class ExpenseDao {
         if (oldName == newName) return
         renameCategoryInExpenses(oldName, newName)
         renameCategoryInRecurring(oldName, newName)
+        renameCategoryInPending(oldName, newName)
         if (categoryExists(newName) > 0) deleteCategory(oldName) else renameCategoryRow(oldName, newName)
     }
 
@@ -485,6 +495,15 @@ abstract class ExpenseDao {
         since: Long
     ): Int
 
+    @Query("SELECT * FROM pending")
+    abstract suspend fun pendingOnce(): List<PendingTx>
+
+    @Insert
+    abstract suspend fun insertPendingList(list: List<PendingTx>)
+
+    @Query("DELETE FROM pending")
+    abstract suspend fun deleteAllPending()
+
     @Query("DELETE FROM pending WHERE createdAt < :before AND status <> 0")
     abstract suspend fun purgePending(before: Long)
 
@@ -519,7 +538,8 @@ abstract class ExpenseDao {
         recurring: List<Recurring>,
         fixedIncomes: List<FixedIncome>,
         debts: List<Debt>,
-        debtPayments: List<DebtPayment>
+        debtPayments: List<DebtPayment>,
+        pending: List<PendingTx>? = null
     ) {
         deleteAllExpenses()
         deleteAllIncomes()
@@ -529,6 +549,8 @@ abstract class ExpenseDao {
         deleteAllRecurring()
         deleteAllTypes()
         deleteAllCategories()
+        // Backup sem o campo "pending" (versões antigas): mantém as pendentes de agora.
+        if (pending != null) deleteAllPending()
         insertTypes(types)
         insertCategories(categories)
         insertExpenses(expenses)
@@ -537,6 +559,7 @@ abstract class ExpenseDao {
         insertFixedIncomes(fixedIncomes)
         insertDebts(debts)
         insertDebtPayments(debtPayments)
+        if (pending != null) insertPendingList(pending.map { it.copy(id = 0) })
     }
 }
 

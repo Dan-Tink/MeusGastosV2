@@ -20,14 +20,33 @@ fun Long.toPlain(): String = String.format(PtBR, "%.2f", this / 100.0)
 fun parseCents(input: String): Long? {
     var t = input.trim().replace("R$", "").replace(" ", "")
     if (t.isEmpty()) return null
-    if (t.contains(',')) t = t.replace(".", "").replace(',', '.')
+    if (t.contains(',')) {
+        t = t.replace(".", "").replace(',', '.')
+    } else if (ThousandsOnly.matches(t)) {
+        // "1.234" sem vírgula: em reais isso é mil duzentos e trinta e quatro, não 1,23.
+        t = t.replace(".", "")
+    }
     val value = t.toBigDecimalOrNull() ?: return null
     val cents = value.multiply(BigDecimal(100)).setScale(0, RoundingMode.HALF_UP)
     // Limite de R$ 999.999.999,99: evita que um número gigante estoure o Long e vire outro valor.
     return if (cents.signum() > 0 && cents <= MaxCents) cents.toLong() else null
 }
 
+private val ThousandsOnly = Regex("""\d{1,3}(\.\d{3})+""")
+
 private val MaxCents = BigDecimal(99_999_999_999L)
+
+/**
+ * Máscara de valor enquanto o usuário digita: só os dígitos contam e entram da direita para a
+ * esquerda ("1" -> "0,01", "150000" -> "1.500,00"). Limite de 11 dígitos, como o de [parseCents].
+ */
+fun maskMoney(raw: String): String {
+    val d = raw.filter { it.isDigit() }.trimStart('0').take(11)
+    if (d.isEmpty()) return ""
+    val p = d.padStart(3, '0')
+    val int = p.dropLast(2).reversed().chunked(3).joinToString(".").reversed()
+    return int + "," + p.takeLast(2)
+}
 
 fun LocalDate.fmt(): String = format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
