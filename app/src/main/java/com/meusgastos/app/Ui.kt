@@ -250,12 +250,16 @@ fun HomeScreen(vm: MainViewModel) {
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Largura cheia e texto centralizado: o título não "anda" durante a transição.
                         Crossfade(
                             targetState = if (tab == TAB_DEBTS) "Dívidas" else month.label(),
+                            modifier = Modifier.fillMaxWidth(),
                             label = "tituloMes"
                         ) { title ->
                             Text(
                                 title,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
