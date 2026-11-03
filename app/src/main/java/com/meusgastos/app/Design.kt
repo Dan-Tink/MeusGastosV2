@@ -18,6 +18,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.LocalGroceryStore
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.FlightTakeoff
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalHospital
@@ -82,7 +101,7 @@ fun categoryIcon(name: String): ImageVector = when (name) {
 
 /** Círculo com o ícone da categoria. No escuro o fundo é mais forte e o ícone assume a cor da categoria. */
 @Composable
-fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false) {
+fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false, iconKey: String? = null) {
     val tint = if (name == "Outros") MaterialTheme.colorScheme.onSurfaceVariant else categoryColor(name)
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val bg = when {
@@ -103,7 +122,7 @@ fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            categoryIcon(name),
+            (expenseIconFor(iconKey) ?: categoryIcon(name)),
             contentDescription = null,
             tint = fg,
             modifier = Modifier.size(size * 0.5f)
@@ -275,3 +294,36 @@ fun AmountHero(
         )
     }
 }
+
+/** Ícones que o usuário pode escolher para um gasto (a chave é o que fica salvo). */
+val ExpenseIcons: List<Pair<String, ImageVector>> = listOf(
+    "cafe" to Icons.Default.LocalCafe,
+    "comida" to Icons.Default.Restaurant,
+    "mercado" to Icons.Default.LocalGroceryStore,
+    "carro" to Icons.Default.DirectionsCar,
+    "combustivel" to Icons.Default.LocalGasStation,
+    "casa" to Icons.Default.Home,
+    "luz" to Icons.Default.Bolt,
+    "agua" to Icons.Default.WaterDrop,
+    "internet" to Icons.Default.Wifi,
+    "celular" to Icons.Default.PhoneAndroid,
+    "contas" to Icons.Default.ReceiptLong,
+    "saude" to Icons.Default.LocalHospital,
+    "compras" to Icons.Default.ShoppingBag,
+    "roupa" to Icons.Default.Checkroom,
+    "jogos" to Icons.Default.SportsEsports,
+    "cinema" to Icons.Default.Movie,
+    "musica" to Icons.Default.MusicNote,
+    "academia" to Icons.Default.FitnessCenter,
+    "pet" to Icons.Default.Pets,
+    "escola" to Icons.Default.School,
+    "crianca" to Icons.Default.ChildCare,
+    "viagem" to Icons.Default.FlightTakeoff,
+    "presente" to Icons.Default.CardGiftcard,
+    "ferramenta" to Icons.Default.Build,
+    "trabalho" to Icons.Default.Work,
+    "poupanca" to Icons.Default.Savings
+)
+
+fun expenseIconFor(key: String?): ImageVector? =
+    if (key == null) null else ExpenseIcons.firstOrNull { it.first == key }?.second

@@ -33,7 +33,11 @@ data class Expense(
     val installmentNo: Int = 0,
     val installmentCount: Int = 0,
     /** Compra no cartão de crédito: a data guardada já é a da fatura (dia 5 do mês seguinte). */
-    @ColumnInfo(defaultValue = "0") val isCredit: Boolean = false
+    @ColumnInfo(defaultValue = "0") val isCredit: Boolean = false,
+    /** Nome do arquivo do comprovante (pasta "comprovantes" do app). Null = sem comprovante. */
+    val receipt: String? = null,
+    /** Ícone escolhido para este gasto (chave de ExpenseIcons). Null = o ícone da categoria. */
+    val icon: String? = null
 )
 
 @Entity(tableName = "types")
@@ -178,6 +182,9 @@ abstract class ExpenseDao {
 
     @Query("SELECT * FROM recurring")
     abstract suspend fun recurringOnce(): List<Recurring>
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE receipt = :name")
+    abstract suspend fun countByReceipt(name: String): Int
 
     @Query("SELECT COUNT(*) FROM expenses WHERE epochDay = :day")
     abstract suspend fun countOnDay(day: Long): Int
@@ -908,12 +915,33 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+/**
+ * Comprovante e ícone do gasto. Só acrescenta colunas. Quem veio da linha antiga do app tem os
+ * nomes dos comprovantes guardados em legacy_expense_extras: eles voltam para o gasto certo.
+ */
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        if (!hasColumn(db, "expenses", "receipt")) db.execSQL("ALTER TABLE expenses ADD COLUMN receipt TEXT")
+        if (!hasColumn(db, "expenses", "icon")) db.execSQL("ALTER TABLE expenses ADD COLUMN icon TEXT")
+        val hasLegacy = db.query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'legacy_expense_extras'"
+        ).use { it.moveToFirst() }
+        if (hasLegacy) {
+            db.execSQL(
+                "UPDATE expenses SET receipt = " +
+                    "(SELECT l.receipt FROM legacy_expense_extras l WHERE l.id = expenses.id) " +
+                    "WHERE receipt IS NULL"
+            )
+        }
+    }
+}
+
 @Database(
     entities = [
         Expense::class, ExpenseType::class, Category::class, Income::class,
         Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -929,7 +957,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

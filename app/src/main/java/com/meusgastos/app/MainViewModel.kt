@@ -317,7 +317,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun delete(e: Expense) {
-        viewModelScope.launch { dao.delete(e) }
+        viewModelScope.launch {
+            dao.delete(e)
+            // O arquivo do comprovante só some se nenhum outro gasto (ex.: outra parcela) o usa.
+            val name = e.receipt
+            if (name != null && dao.countByReceipt(name) == 0) Receipts.delete(app, name)
+        }
     }
 
     /** Exclui uma parcela e, conforme [scope], as seguintes ou todas. */
@@ -517,7 +522,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 .map { e ->
                     val day = LocalDate.ofEpochDay(e.epochDay).dayOfMonth
-                    e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay())
+                    e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay(), receipt = null)
                 }
 
             if (newExpenses.isNotEmpty()) dao.insertExpenses(newExpenses)

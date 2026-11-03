@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Search
@@ -970,7 +971,7 @@ private fun ExpenseRow(e: Expense, showDate: Boolean, onClick: () -> Unit) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CategoryBadge(e.category, size = 44.dp)
+            CategoryBadge(e.category, size = 44.dp, iconKey = e.icon)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -988,6 +989,15 @@ private fun ExpenseRow(e: Expense, showDate: Boolean, onClick: () -> Unit) {
                 )
             }
             Spacer(Modifier.width(8.dp))
+            if (e.receipt != null) {
+                Icon(
+                    Icons.Default.AttachFile,
+                    contentDescription = "Tem comprovante",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(6.dp))
+            }
             Text(
                 e.amountCents.toMoney(),
                 fontFamily = MoneyFont,
