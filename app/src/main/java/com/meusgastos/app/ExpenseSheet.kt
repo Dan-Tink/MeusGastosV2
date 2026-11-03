@@ -21,6 +21,19 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -111,6 +124,46 @@ fun ExpenseSheet(
     var amountIsTotal by remember { mutableStateOf(false) }
     var pickDate by remember { mutableStateOf(false) }
     var credit by remember { mutableStateOf(false) }
+    var icon by remember { mutableStateOf(initial?.icon) }
+    var receipt by remember { mutableStateOf(initial?.receipt) }
+    var receiptError by remember { mutableStateOf<String?>(null) }
+    var savedFlag by remember { mutableStateOf(false) }
+    var photoName by rememberSaveable { mutableStateOf<String?>(null) }
+    val addedReceipts = remember { mutableListOf<String>() }
+    val context = LocalContext.current
+
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val name = Receipts.saveCopy(context, uri)
+            if (name != null) {
+                addedReceipts.add(name)
+                receipt = name
+                receiptError = null
+            } else {
+                receiptError = "Escolha uma foto ou um PDF."
+            }
+        }
+    }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val name = photoName
+        if (name != null) {
+            if (ok) {
+                addedReceipts.add(name)
+                receipt = name
+                receiptError = null
+            } else {
+                Receipts.delete(context, name)
+            }
+        }
+        photoName = null
+    }
+    // Ao sair sem salvar, apaga os arquivos que foram anexados só nesta tela.
+    DisposableEffect(Unit) {
+        onDispose {
+            val keep = if (savedFlag) receipt else initial?.receipt
+            addedReceipts.filter { it != keep }.forEach { Receipts.delete(context, it) }
+        }
+    }
     var confirmDelete by remember { mutableStateOf(false) }
     var scopeAction by remember { mutableStateOf<ScopeAction?>(null) }
 
@@ -159,6 +212,8 @@ fun ExpenseSheet(
         amountCents = cents ?: 0L,
         epochDay = effDate.toEpochDay(),
         isCredit = if (initial == null) credit else initial.isCredit,
+        receipt = receipt,
+        icon = icon,
         category = category,
         groupId = initial?.groupId,
         installmentNo = initial?.installmentNo ?: 0,
@@ -314,6 +369,20 @@ fun ExpenseSheet(
                                 }
                             }
                             repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+
+                // ---- Ícone do gasto (Auto = o da categoria) ----
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SheetLabel("Ícone (Auto segue a categoria)")
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconChoice(icon == null, categoryIcon(category), "Automático") { icon = null }
+                        ExpenseIcons.forEach { (key, vector) ->
+                            IconChoice(icon == key, vector, key) { icon = key }
                         }
                     }
                 }
@@ -479,6 +548,71 @@ fun ExpenseSheet(
                     }
                 }
 
+                // ---- Comprovante: foto, imagem ou PDF ----
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SheetLabel("Comprovante")
+                    val r = receipt
+                    if (r == null) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    val (name, uri) = Receipts.newPhoto(context)
+                                    photoName = name
+                                    takePhoto.launch(uri)
+                                },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Tirar foto")
+                            }
+                            OutlinedButton(
+                                onClick = { pickFile.launch(arrayOf("image/*", "application/pdf")) },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Anexar")
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.padding(start = 16.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.AttachFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    if (r.endsWith(".pdf")) "Comprovante (PDF)" else "Comprovante (imagem)",
+                                    modifier = Modifier.weight(1f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                TextButton(onClick = {
+                                    receiptError = if (Receipts.open(context, r)) null
+                                    else "Não achei o arquivo deste comprovante neste aparelho."
+                                }) { Text("Ver") }
+                                TextButton(onClick = { receipt = null }) {
+                                    Text("Remover", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    receiptError?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+
                 if (isGrouped) {
                     Text(
                         "Ao salvar, você escolhe se vale só para esta parcela, para as próximas ou para todas.",
@@ -523,6 +657,7 @@ fun ExpenseSheet(
                         if (isGrouped) {
                             scopeAction = ScopeAction.SAVE
                         } else {
+                            savedFlag = true
                             onSave(buildExpense(), installments, amountIsTotal, false)
                         }
                     },
@@ -541,6 +676,10 @@ fun ExpenseSheet(
                     TextButton(
                         onClick = {
                             onSave(buildExpense(), installments, amountIsTotal, true)
+                            // O comprovante já foi para o gasto salvo: o próximo começa sem ele.
+                            addedReceipts.clear()
+                            receipt = null
+                            icon = null
                             desc = ""
                             amount = ""
                             instText = "1"
@@ -583,12 +722,34 @@ fun ExpenseSheet(
             onPick = { scope ->
                 scopeAction = null
                 if (action == ScopeAction.SAVE) {
+                    savedFlag = true
                     onSaveScoped(buildExpense(), scope)
                 } else {
                     onDeleteScoped(initial, scope)
                 }
             },
             onDismiss = { scopeAction = null }
+        )
+    }
+}
+
+/** Botão redondo de escolha de ícone. */
+@Composable
+private fun IconChoice(selected: Boolean, vector: ImageVector, description: String, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(if (selected) scheme.primary else scheme.surfaceContainerHighest.copy(alpha = 0.6f))
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            vector,
+            contentDescription = description,
+            tint = if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
         )
     }
 }

@@ -87,6 +87,8 @@ suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
                 .put("installmentNo", it.installmentNo)
                 .put("installmentCount", it.installmentCount)
                 .put("isCredit", it.isCredit)
+                .put("receipt", it.receipt ?: JSONObject.NULL)
+                .put("icon", it.icon ?: JSONObject.NULL)
         })
     )
     root.put(
@@ -216,6 +218,8 @@ suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): 
                 installmentNo = it.optInt("installmentNo", 0),
                 installmentCount = it.optInt("installmentCount", 0),
                 isCredit = it.optBoolean("isCredit", false),
+                receipt = if (it.isNull("receipt")) null else it.getString("receipt"),
+                icon = if (it.isNull("icon")) null else it.getString("icon"),
                 description = it.getString("description"),
                 amountCents = it.getLong("amountCents"),
                 epochDay = it.getLong("epochDay")

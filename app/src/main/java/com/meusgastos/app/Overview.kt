@@ -255,7 +255,7 @@ fun RecentExpensesCard(recent: List<Expense>) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             recent.forEach { e ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    CategoryBadge(e.category, size = 32.dp)
+                    CategoryBadge(e.category, size = 32.dp, iconKey = e.icon)
                     Spacer(Modifier.width(10.dp))
                     Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium)
