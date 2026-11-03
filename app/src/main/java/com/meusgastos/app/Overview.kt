@@ -29,11 +29,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,11 +70,12 @@ fun OverviewCard(
     }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radii.card),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         border = CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.animateContentSize().padding(Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -81,7 +84,7 @@ fun OverviewCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        if (hidden) "R$ ••••••" else o.balance.toMoney(),
+                        if (hidden) AnnotatedString("R$ ••••••") else moneyAnnotated(o.balance),
                         style = MaterialTheme.typography.headlineLarge,
                         fontFamily = MoneyFont,
                         fontWeight = FontWeight.Bold,
@@ -101,7 +104,7 @@ fun OverviewCard(
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Tile("Ganhos", o.income, PositiveColor, hidden, Modifier.weight(1f), onClick = onIncomeClick)
-                Tile("Gastos fixos", o.fixed, WarningColor, hidden, Modifier.weight(1f))
+                Tile("Fixos", o.fixed, WarningColor, hidden, Modifier.weight(1f))
                 Tile("Variáveis", o.variable, AccentViolet, hidden, Modifier.weight(1f))
             }
 
@@ -113,7 +116,7 @@ fun OverviewCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
+                        .clip(Bars.shape),
                     color = barColor,
                     trackColor = MaterialTheme.colorScheme.outlineVariant
                 )
@@ -171,7 +174,7 @@ private fun Tile(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(8.dp)
+                    .size(6.dp)
                     .clip(CircleShape)
                     .background(color)
             )
@@ -203,5 +206,63 @@ private fun Tile(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+/**
+ * Resumo acionável: quanto dá para gastar por dia, o peso das dívidas em aberto e os últimos
+ * lançamentos do mês. Some sozinho quando não há nada a mostrar.
+ */
+@Composable
+fun InsightsCard(owedCents: Long, balanceCents: Long, daysLeft: Int?) {
+    val perDay = if (daysLeft != null && daysLeft > 0 && balanceCents > 0) (balanceCents + daysLeft / 2) / daysLeft else null
+    if (perDay == null && owedCents <= 0) return
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().animateContentSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (perDay != null) {
+                Column {
+                    Text("Para o resto do mês", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${perDay.toMoney()} por dia", style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                }
+            }
+            if (owedCents > 0) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Dívidas em aberto", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(owedCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+/** Últimos lançamentos do mês, para dar uma olhada rápida sem sair do Resumo. */
+@Composable
+fun RecentExpensesCard(recent: List<Expense>) {
+    if (recent.isEmpty()) return
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Últimos gastos", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            recent.forEach { e ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    CategoryBadge(e.category, size = 32.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
+                        style = MaterialTheme.typography.bodyMedium)
+                    Text(e.amountCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
     }
 }

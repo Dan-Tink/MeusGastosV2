@@ -20,18 +20,37 @@ fun Long.toPlain(): String = String.format(PtBR, "%.2f", this / 100.0)
 fun parseCents(input: String): Long? {
     var t = input.trim().replace("R$", "").replace(" ", "")
     if (t.isEmpty()) return null
-    if (t.contains(',')) t = t.replace(".", "").replace(',', '.')
+    if (t.contains(',')) {
+        t = t.replace(".", "").replace(',', '.')
+    } else if (ThousandsOnly.matches(t)) {
+        // "1.234" sem vírgula: em reais isso é mil duzentos e trinta e quatro, não 1,23.
+        t = t.replace(".", "")
+    }
     val value = t.toBigDecimalOrNull() ?: return null
-    val cents = value.multiply(BigDecimal(100)).setScale(0, RoundingMode.HALF_UP).toLong()
-    return if (cents > 0) cents else null
+    val cents = value.multiply(BigDecimal(100)).setScale(0, RoundingMode.HALF_UP)
+    // Limite de R$ 999.999.999,99: evita que um número gigante estoure o Long e vire outro valor.
+    return if (cents.signum() > 0 && cents <= MaxCents) cents.toLong() else null
+}
+
+private val ThousandsOnly = Regex("""\d{1,3}(\.\d{3})+""")
+
+private val MaxCents = BigDecimal(99_999_999_999L)
+
+/**
+ * Máscara de valor enquanto o usuário digita: só os dígitos contam e entram da direita para a
+ * esquerda ("1" -> "0,01", "150000" -> "1.500,00"). Limite de 11 dígitos, como o de [parseCents].
+ */
+fun maskMoney(raw: String): String {
+    val d = raw.filter { it.isDigit() }.trimStart('0').take(11)
+    if (d.isEmpty()) return ""
+    val p = d.padStart(3, '0')
+    val int = p.dropLast(2).reversed().chunked(3).joinToString(".").reversed()
+    return int + "," + p.takeLast(2)
 }
 
 fun LocalDate.fmt(): String = format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
 fun YearMonth.monthName(): String = month.getDisplayName(TextStyle.FULL, PtBR)
-
-/** Reconhece o sufixo de parcela, como " (2/6)". */
-val InstallmentRegex = Regex("\\s*\\(\\d+/\\d+\\)$")
 
 fun YearMonth.label(): String = monthName().replaceFirstChar { it.uppercase() } + " " + year
 
@@ -39,10 +58,8 @@ fun YearMonth.label(): String = monthName().replaceFirstChar { it.uppercase() } 
 fun Expense.title(): String =
     if (installmentCount > 1) "$description ($installmentNo/$installmentCount)" else description
 
-fun YearMonth.monthIndex(): Int = year * 12 + (monthValue - 1)
-
-fun monthFromIndex(index: Int): YearMonth = YearMonth.of(index / 12, index % 12 + 1)
-
 /** Minúsculas e sem acentos, para buscas. */
 fun String.norm(): String =
-    Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
+    Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(AccentMarks, "")
+
+private val AccentMarks = Regex("\\p{Mn}+")

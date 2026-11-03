@@ -37,7 +37,9 @@ data class ParsedNotification(
 )
 
 private fun String.plain(): String =
-    Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
+    Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(AccentMarks, "")
+
+private val AccentMarks = Regex("\\p{Mn}+")
 
 private val AmountRegex = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)""")
 
@@ -45,8 +47,8 @@ private val AmountRegex = Regex("""R\$\s*(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?
 private fun brlToCents(raw: String): Long? {
     val t = raw.replace(".", "").replace(',', '.')
     val v = t.toBigDecimalOrNull() ?: return null
-    val cents = v.multiply(BigDecimal(100)).setScale(0, RoundingMode.HALF_UP).toLong()
-    return if (cents > 0) cents else null
+    val cents = v.multiply(BigDecimal(100)).setScale(0, RoundingMode.HALF_UP)
+    return if (cents.signum() > 0 && cents <= BigDecimal(99_999_999_999L)) cents.toLong() else null
 }
 
 // Mensagens que não são movimentação: ofertas, avisos, códigos, faturas e lembretes.
@@ -60,7 +62,8 @@ private val IgnoreWords = listOf(
 private val IncomeWords = listOf(
     "voce recebeu", "pix recebido", "transferencia recebida", "recebeu uma transferencia",
     "recebeu um pix", "recebeu um pagamento", "pagamento recebido", "deposito", "salario",
-    "credito em conta", "transferencia de"
+    "credito em conta", "transferencia de", "te enviou", "te pagou", "te transferiu",
+    "enviou para voce", "transferiu para voce"
 )
 
 private val ExpenseWords = listOf(
@@ -158,6 +161,8 @@ fun guessCategory(merchant: String): String? {
     val p = merchant.plain()
     fun has(vararg k: String) = k.any { it in p }
     return when {
+        // Antes de "mercado": "Mercado Livre" é compra, não supermercado.
+        has("mercado livre", "mercadolivre") -> "Compras"
         has("ifood", "rappi", "restaurante", "lanchonete", "padaria", "pizzaria", "hamburg",
             "mercado", "supermercado", "atacad", "acougue", "sorvete", "cafe", "burger", "mcdonald") -> "Alimentação"
         has("uber", "99", "posto", "combustivel", "shell", "ipiranga", "estacionamento",

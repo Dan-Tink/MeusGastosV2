@@ -5,7 +5,6 @@ package com.meusgastos.app
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,13 +22,11 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,20 +36,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -115,6 +110,7 @@ fun ExpenseSheet(
     var showCustom by remember { mutableStateOf(false) }
     var amountIsTotal by remember { mutableStateOf(false) }
     var pickDate by remember { mutableStateOf(false) }
+    var credit by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var scopeAction by remember { mutableStateOf<ScopeAction?>(null) }
 
@@ -151,12 +147,18 @@ fun ExpenseSheet(
         }
     }
 
+    // Compra no crédito (só em gasto novo): cai na fatura, sempre no dia 5 do mês seguinte.
+    val effDate: LocalDate = if (initial == null && credit) {
+        YearMonth.from(date).plusMonths(1).atDay(CREDIT_DUE_DAY)
+    } else date
+
     fun buildExpense() = Expense(
         id = initial?.id ?: 0L,
         type = type,
         description = desc.trim(),
         amountCents = cents ?: 0L,
-        epochDay = date.toEpochDay(),
+        epochDay = effDate.toEpochDay(),
+        isCredit = if (initial == null) credit else initial.isCredit,
         category = category,
         groupId = initial?.groupId,
         installmentNo = initial?.installmentNo ?: 0,
@@ -183,17 +185,12 @@ fun ExpenseSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(Modifier.fillMaxWidth().imePadding()) {
-            Column(
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+            // Valor fixo no topo: continua visível enquanto o formulário rola.
+            Box(Modifier.padding(horizontal = 20.dp)) {
                 // ---- Título e valor em destaque ----
                 Column(
                     Modifier.fillMaxWidth(),
@@ -212,43 +209,38 @@ fun ExpenseSheet(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    TextField(
+                    AmountHero(
                         value = amount,
                         onValueChange = { amount = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focus),
-                        textStyle = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        placeholder = {
-                            Text(
-                                "0,00",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.displaySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        )
+                        fieldModifier = Modifier.focusRequester(focus)
                     )
                     Text(
-                        "$amountLabel (R$)",
+                        amountLabel,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (initial == null && installments > 1 && perInstallment != null && totalCents != null) {
+                        Text(
+                            "${installments}x de ${perInstallment.toMoney()} · total ${totalCents.toMoney()}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
 
+            }
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(top = 6.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 // ---- Tipo: controle segmentado ----
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -312,9 +304,10 @@ fun ExpenseSheet(
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         c.name,
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                         fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = if (sel) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -330,7 +323,7 @@ fun ExpenseSheet(
                     TextField(
                         value = desc,
                         onValueChange = { desc = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                         placeholder = { Text("Descrição (ex.: coxinha)") },
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
@@ -406,7 +399,7 @@ fun ExpenseSheet(
                                 TextField(
                                     value = instText,
                                     onValueChange = { instText = it.filter(Char::isDigit).take(3) },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                                     placeholder = { Text("Número de parcelas") },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -414,22 +407,49 @@ fun ExpenseSheet(
                                     colors = softFieldColors()
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                PillChip(!amountIsTotal, { amountIsTotal = false }, "Valor da parcela")
-                                PillChip(amountIsTotal, { amountIsTotal = true }, "Valor total")
+                            SegmentedChoice(
+                                options = listOf("Valor da parcela", "Valor total"),
+                                selectedIndex = if (amountIsTotal) 1 else 0,
+                                onSelect = { amountIsTotal = it == 1 }
+                            )
+                        }
+                    }
+                }
+
+                // ---- Crédito: a compra cai na fatura do mês seguinte (só em gasto novo) ----
+                if (initial == null) {
+                    Surface(
+                        onClick = { credit = !credit },
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth().animateContentSize()
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Compra no crédito", fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (credit) "Entra na fatura de ${effDate.fmt()} (dia $CREDIT_DUE_DAY)"
+                                    else "Ligue para lançar na fatura do mês seguinte",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
+                            androidx.compose.material3.Switch(checked = credit, onCheckedChange = { credit = it })
                         }
                     }
                 }
 
                 // ---- Resumo ao vivo do parcelamento ----
                 if (initial == null && installments > 1 && perInstallment != null && totalCents != null) {
-                    val last = YearMonth.from(date).plusMonths((installments - 1).toLong())
+                    val last = YearMonth.from(effDate).plusMonths((installments - 1).toLong())
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) {
                         Column(
@@ -446,7 +466,7 @@ fun ExpenseSheet(
                             )
                             Text("Total: ${totalCents.toMoney()}", fontFamily = MoneyFont)
                             Text(
-                                "1ª em ${date.fmt()} • última em ${last.monthName()} de ${last.year}",
+                                "1ª em ${effDate.fmt()} • última em ${last.monthName()} de ${last.year}",
                                 style = MaterialTheme.typography.labelSmall
                             )
                             if (firstExtra > 0) {
@@ -639,3 +659,6 @@ private fun ManageLink(onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 6.dp)
     )
 }
+
+/** Dia do mês em que a fatura do cartão cai. */
+private const val CREDIT_DUE_DAY = 5

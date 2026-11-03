@@ -55,7 +55,7 @@ suspend fun buildCsv(dao: ExpenseDao): String {
 }
 
 /** Backup completo em JSON, para restaurar em outro aparelho. */
-suspend fun buildBackupJson(dao: ExpenseDao): String {
+suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
     val types = dao.typesOnce()
     val categories = dao.categoriesOnce()
     val expenses = dao.expensesOnce()
@@ -64,10 +64,11 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
     val fixedIncomes = dao.fixedIncomesOnce()
     val debts = dao.debtsOnce()
     val debtPayments = dao.debtPaymentsOnce()
+    val pending = dao.pendingOnce()
 
     val root = JSONObject()
     root.put("app", "MeusGastos")
-    root.put("version", 1)
+    root.put("version", 2)
     root.put(
         "types",
         JSONArray(types.map { JSONObject().put("name", it.name).put("fixed", it.fixed) })
@@ -85,6 +86,7 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("groupId", it.groupId)
                 .put("installmentNo", it.installmentNo)
                 .put("installmentCount", it.installmentCount)
+                .put("isCredit", it.isCredit)
         })
     )
     root.put(
@@ -143,11 +145,59 @@ suspend fun buildBackupJson(dao: ExpenseDao): String {
                 .put("note", it.note)
         })
     )
+    root.put(
+        "pending",
+        JSONArray(pending.map {
+            JSONObject()
+                .put("source", it.source)
+                .put("amountCents", it.amountCents)
+                .put("isIncome", it.isIncome)
+                .put("description", it.description)
+                .put("method", it.method)
+                .put("epochDay", it.epochDay)
+                .put("createdAt", it.createdAt)
+                .put("type", it.type)
+                .put("category", it.category)
+                .put("status", it.status)
+        })
+    )
+    root.put("settings", settings.toJson())
     return root.toString(2)
 }
 
+/** Todas as preferências do app (limite, lembrete, captura, tema e cor). */
+private fun Settings.toJson(): JSONObject = JSONObject()
+    .put("limitCents", limitCents)
+    .put("reminderEnabled", reminderEnabled)
+    .put("reminderHour", reminderHour)
+    .put("lastType", lastType)
+    .put("lastCategory", lastCategory)
+    .put("captureEnabled", captureEnabled)
+    .put("captureAuto", captureAuto)
+    .put("captureDisabled", JSONArray(captureDisabled.toList()))
+    .put("captureTipDismissed", captureTipDismissed)
+    .put("themeMode", themeMode)
+    .put("accent", accent)
+
+/** Aplica só o que existir no arquivo; o que faltar (backup antigo) fica como está. */
+private fun Settings.applyJson(o: JSONObject) {
+    if (o.has("limitCents")) limitCents = o.getLong("limitCents").coerceAtLeast(0L)
+    if (o.has("reminderEnabled")) reminderEnabled = o.getBoolean("reminderEnabled")
+    if (o.has("reminderHour")) reminderHour = o.getInt("reminderHour").coerceIn(0, 23)
+    if (o.has("lastType")) lastType = o.getString("lastType")
+    if (o.has("lastCategory")) lastCategory = o.getString("lastCategory")
+    if (o.has("captureEnabled")) captureEnabled = o.getBoolean("captureEnabled")
+    if (o.has("captureAuto")) captureAuto = o.getBoolean("captureAuto")
+    o.optJSONArray("captureDisabled")?.let { arr ->
+        captureDisabled = (0 until arr.length()).map { arr.getString(it) }.toSet()
+    }
+    if (o.has("captureTipDismissed")) captureTipDismissed = o.getBoolean("captureTipDismissed")
+    if (o.has("themeMode")) themeMode = ThemeMode.from(o.getString("themeMode")).key
+    if (o.has("accent")) accent = AccentTheme.from(o.getString("accent")).key
+}
+
 /** Substitui todos os dados atuais pelo conteúdo do backup. Retorna false se o arquivo for inválido. */
-suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
+suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): Boolean {
     return try {
         val root = JSONObject(text)
         if (root.optString("app") != "MeusGastos") return false
@@ -165,6 +215,7 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
                 groupId = if (it.has("groupId")) it.getLong("groupId") else null,
                 installmentNo = it.optInt("installmentNo", 0),
                 installmentCount = it.optInt("installmentCount", 0),
+                isCredit = it.optBoolean("isCredit", false),
                 description = it.getString("description"),
                 amountCents = it.getLong("amountCents"),
                 epochDay = it.getLong("epochDay")
@@ -236,7 +287,22 @@ suspend fun restoreFromJson(dao: ExpenseDao, text: String): Boolean {
                     note = it.optString("note", "")
                 )
             }
-        dao.replaceAll(types, categories, expenses, incomes, recurring, fixedIncomes, debts, debtPayments)
+        val pending = root.optJSONArray("pending")?.objects()?.map {
+            PendingTx(
+                source = it.getString("source"),
+                amountCents = it.getLong("amountCents"),
+                isIncome = it.getBoolean("isIncome"),
+                description = it.getString("description"),
+                method = it.getString("method"),
+                epochDay = it.getLong("epochDay"),
+                createdAt = it.getLong("createdAt"),
+                type = it.getString("type"),
+                category = it.getString("category"),
+                status = it.optInt("status", 0)
+            )
+        }
+        dao.replaceAll(types, categories, expenses, incomes, recurring, fixedIncomes, debts, debtPayments, pending)
+        root.optJSONObject("settings")?.let { runCatching { settings.applyJson(it) } }
         true
     } catch (e: Exception) {
         false

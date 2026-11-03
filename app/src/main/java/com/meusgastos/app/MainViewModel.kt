@@ -9,9 +9,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
@@ -24,7 +27,9 @@ data class Filters(
     val maxCents: Long? = null,
     val from: LocalDate? = null,
     val to: LocalDate? = null,
-    val sortByValue: Boolean = false
+    val sortByValue: Boolean = false,
+    /** Só compras no cartão de crédito: o total mostrado é o da fatura. */
+    val creditOnly: Boolean = false
 ) {
     val dateActive: Boolean get() = from != null || to != null
     val activeCount: Int
@@ -33,7 +38,8 @@ data class Filters(
             categories.isNotEmpty(),
             minCents != null || maxCents != null,
             dateActive,
-            sortByValue
+            sortByValue,
+            creditOnly
         ).count { it }
 }
 
@@ -86,10 +92,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val dao = AppDatabase.get(app).dao()
     private val settings = Settings(app)
 
+    // Uma única consulta por tabela, compartilhada por todos os resumos (antes cada um abria a sua).
+    private val expensesFlow = dao.observeExpenses()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
+    private val incomesFlow = dao.observeIncomes()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
+    private val typesFlow = dao.observeTypes()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
+    private val fixedIncomesFlow = dao.observeFixedIncomes()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
+
     val month = MutableStateFlow(YearMonth.now())
     val filters = MutableStateFlow(Filters())
 
-    val types: StateFlow<List<ExpenseType>> = dao.observeTypes()
+    val types: StateFlow<List<ExpenseType>> = typesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val categories: StateFlow<List<Category>> = dao.observeCategories()
@@ -109,13 +125,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         themeMode.value = mode
     }
 
+    val accent = MutableStateFlow(AccentTheme.from(settings.accent))
+
+    fun setAccent(a: AccentTheme) {
+        settings.accent = a.key
+        accent.value = a
+    }
+
     val captureEnabled = MutableStateFlow(settings.captureEnabled)
     val captureAuto = MutableStateFlow(settings.captureAuto)
     val captureDisabled = MutableStateFlow(settings.captureDisabled)
     val captureTipDismissed = MutableStateFlow(settings.captureTipDismissed)
 
     /** Todos os gastos, usados para sugerir descrições já digitadas. */
-    val allExpenses: StateFlow<List<Expense>> = dao.observeExpenses()
+    val allExpenses: StateFlow<List<Expense>> = expensesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val limitCents = MutableStateFlow(settings.limitCents)
@@ -136,16 +159,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Ganhos variáveis: valem só no mês em que foram lançados. */
-    val monthIncomes: StateFlow<List<Income>> = combine(dao.observeIncomes(), month) { list, m ->
+    val monthIncomes: StateFlow<List<Income>> = combine(incomesFlow, month) { list, m ->
         list.filter { inMonth(it.epochDay, m) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Ganhos fixos: valem em todo mês a partir do começo deles, inclusive nos meses futuros. */
     val monthFixedIncomes: StateFlow<List<FixedIncome>> =
-        combine(dao.observeFixedIncomes(), month) { list, m -> list.filter { it.activeIn(m) } }
+        combine(fixedIncomesFlow, month) { list, m -> list.filter { it.activeIn(m) } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val monthSummary: StateFlow<MonthSummary> = combine(dao.observeExpenses(), month) { all, m ->
+    val monthSummary: StateFlow<MonthSummary> = combine(expensesFlow, month) { all, m ->
         val list = all.filter { inMonth(it.epochDay, m) }
         MonthSummary(
             total = list.sumOf { it.amountCents },
@@ -160,10 +183,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthSummary())
 
     val overview: StateFlow<Overview> = combine(
-        dao.observeExpenses(),
-        dao.observeIncomes(),
-        dao.observeTypes(),
-        dao.observeFixedIncomes(),
+        expensesFlow,
+        incomesFlow,
+        typesFlow,
+        fixedIncomesFlow,
         month
     ) { expenses, incomes, typeList, fixedList, m ->
         val fixedNames = typeList.filter { it.fixed }.map { it.name }.toSet()
@@ -191,7 +214,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Overview())
 
-    val state: StateFlow<UiState> = combine(dao.observeExpenses(), month, filters) { all, m, f ->
+    val state: StateFlow<UiState> = combine(expensesFlow, month, filters) { all, m, f ->
         val q = f.query.norm().trim()
         val from = f.from
         val to = f.to
@@ -216,6 +239,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     e.category.norm().contains(q)) &&
                 (f.types.isEmpty() || e.type in f.types) &&
                 (f.categories.isEmpty() || e.category in f.categories) &&
+                (!f.creditOnly || e.isCredit) &&
                 (minC == null || e.amountCents >= minC) &&
                 (maxC == null || e.amountCents <= maxC)
         }
@@ -436,7 +460,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { runRecurring() }
     }
 
-    private suspend fun runRecurring() {
+    private val recurringLock = Mutex()
+
+    private suspend fun runRecurring() = recurringLock.withLock {
         val now = YearMonth.now()
         for (r in dao.recurringOnce()) {
             val last = runCatching { YearMonth.parse(r.lastGenerated) }.getOrNull() ?: now.minusMonths(1)
@@ -597,7 +623,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    val text = buildBackupJson(dao)
+                    val text = buildBackupJson(dao, settings)
                     val out = app.contentResolver.openOutputStream(uri) ?: error("sem saída")
                     out.use { it.write(text.toByteArray(Charsets.UTF_8)) }
                 }.isSuccess
@@ -612,10 +638,26 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 runCatching {
                     val input = app.contentResolver.openInputStream(uri) ?: error("sem entrada")
                     val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    restoreFromJson(dao, text)
+                    restoreFromJson(dao, settings, text)
                 }.getOrDefault(false)
             }
+            if (ok) reloadSettings()
             onDone(ok)
         }
+    }
+
+    /** Relê as preferências depois de restaurar um backup, para a tela e o lembrete acompanharem. */
+    private fun reloadSettings() {
+        themeMode.value = ThemeMode.from(settings.themeMode)
+        accent.value = AccentTheme.from(settings.accent)
+        captureEnabled.value = settings.captureEnabled
+        captureAuto.value = settings.captureAuto
+        captureDisabled.value = settings.captureDisabled
+        captureTipDismissed.value = settings.captureTipDismissed
+        limitCents.value = settings.limitCents
+        reminderEnabled.value = settings.reminderEnabled
+        reminderHour.value = settings.reminderHour
+        if (settings.reminderEnabled) Reminder.schedule(app, settings.reminderHour, replace = true)
+        else Reminder.cancel(app)
     }
 }

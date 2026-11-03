@@ -15,12 +15,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val mode by vm.themeMode.collectAsStateWithLifecycle()
+            val accent by vm.accent.collectAsStateWithLifecycle()
             val dark = when (mode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            MeusGastosTheme(darkTheme = dark) {
+            MeusGastosTheme(darkTheme = dark, accent = accent) {
                 HomeScreen(vm)
             }
         }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,12 +29,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
@@ -45,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +82,7 @@ fun LazyListScope.incomesTab(
             icon = Icons.Default.Repeat,
             title = f.description,
             subtitle = "Todo dia ${f.dayOfMonth}",
+            badge = "",
             cents = f.amountCents,
             onClick = { onEditFixed(f) }
         )
@@ -99,6 +99,7 @@ fun LazyListScope.incomesTab(
             icon = Icons.Default.CalendarMonth,
             title = i.description,
             subtitle = LocalDate.ofEpochDay(i.epochDay).fmt(),
+            badge = "só este mês",
             cents = i.amountCents,
             onClick = { onEditVariable(i) }
         )
@@ -126,7 +127,7 @@ private fun IncomeTotalCard(month: YearMonth, fixedTotal: Long, variableTotal: L
                 textAlign = TextAlign.Center
             )
             Text(
-                (fixedTotal + variableTotal).toMoney(),
+                moneyAnnotated(fixedTotal + variableTotal),
                 style = MaterialTheme.typography.headlineLarge,
                 fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,
@@ -134,12 +135,55 @@ private fun IncomeTotalCard(month: YearMonth, fixedTotal: Long, variableTotal: L
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                "Fixos ${fixedTotal.toMoney()}  ·  Variáveis ${variableTotal.toMoney()}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (fixedTotal + variableTotal > 0) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                ) {
+                    if (fixedTotal > 0) {
+                        Box(
+                            Modifier
+                                .weight(fixedTotal.toFloat())
+                                .fillMaxHeight()
+                                .background(PositiveColor)
+                        )
+                    }
+                    if (variableTotal > 0) {
+                        Box(
+                            Modifier
+                                .weight(variableTotal.toFloat())
+                                .fillMaxHeight()
+                                .background(AccentViolet)
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                IncomeLegend(PositiveColor, "Fixos ${fixedTotal.toMoney()}")
+                IncomeLegend(AccentViolet, "Variáveis ${variableTotal.toMoney()}")
+            }
         }
+    }
+}
+
+@Composable
+private fun IncomeLegend(color: androidx.compose.ui.graphics.Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(color)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -182,6 +226,7 @@ private fun IncomeRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    badge: String,
     cents: Long,
     onClick: () -> Unit
 ) {
@@ -214,11 +259,25 @@ private fun IncomeRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (badge.isNotBlank()) Spacer(Modifier.width(8.dp))
+                    if (badge.isNotBlank()) androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ) {
+                        Text(
+                            badge,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
             Spacer(Modifier.width(8.dp))
             Text(
@@ -263,6 +322,15 @@ fun IncomeSheet(
     }
     var pickDate by remember { mutableStateOf(false) }
     var confirmEnd by remember { mutableStateOf(false) }
+    val amountFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (isNew) {
+            kotlinx.coroutines.delay(350)
+            runCatching { amountFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
 
     val cents = parseCents(amount)
     val day = dayText.toIntOrNull()
@@ -271,7 +339,8 @@ fun IncomeSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -288,15 +357,19 @@ fun IncomeSheet(
                     editingFixed != null -> "Editar ganho fixo"
                     else -> "Editar ganho variável"
                 },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            AmountHero(value = amount, onValueChange = { amount = it }, fieldModifier = Modifier.focusRequester(amountFocus))
 
             if (isNew) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PillChip(fixedMode, { fixedMode = true }, "Fixo · todo mês")
-                    PillChip(!fixedMode, { fixedMode = false }, "Variável · só um mês")
-                }
+                SegmentedChoice(
+                    options = listOf("Fixo · todo mês", "Variável · só um mês"),
+                    selectedIndex = if (fixedMode) 0 else 1,
+                    onSelect = { fixedMode = it == 0 }
+                )
             }
             Text(
                 if (fixedMode) {
@@ -311,22 +384,10 @@ fun IncomeSheet(
             TextField(
                 value = desc,
                 onValueChange = { desc = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Descrição") },
                 placeholder = { Text(if (fixedMode) "ex.: Salário" else "ex.: Freela") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = softFieldColors()
-            )
-            TextField(
-                value = amount,
-                onValueChange = { amount = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Valor") },
-                placeholder = { Text("1800,00") },
-                prefix = { Text("R$ ") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 shape = RoundedCornerShape(14.dp),
                 colors = softFieldColors()
             )
@@ -334,7 +395,7 @@ fun IncomeSheet(
                 TextField(
                     value = dayText,
                     onValueChange = { dayText = it.filter(Char::isDigit).take(2) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                     label = { Text("Dia do mês em que cai") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

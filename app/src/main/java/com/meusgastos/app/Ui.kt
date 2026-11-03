@@ -6,13 +6,14 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -34,31 +35,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Receipt
-import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -67,7 +67,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -79,12 +78,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextField
 import java.time.YearMonth
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -104,6 +105,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Instant
@@ -131,6 +133,7 @@ fun HomeScreen(vm: MainViewModel) {
     val summary by vm.monthSummary.collectAsStateWithLifecycle()
     val debts by vm.debts.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val accent by vm.accent.collectAsStateWithLifecycle()
     val recurring by vm.recurring.collectAsStateWithLifecycle()
     val history by vm.allExpenses.collectAsStateWithLifecycle()
     val limit by vm.limitCents.collectAsStateWithLifecycle()
@@ -150,6 +153,7 @@ fun HomeScreen(vm: MainViewModel) {
     var showCategories by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(TAB_SUMMARY) }
     var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
+    var addMenuOpen by remember { mutableStateOf(false) }
     var showNewDebt by remember { mutableStateOf(false) }
     var openDebtId by remember { mutableStateOf<Long?>(null) }
     var payDebtId by remember { mutableStateOf<Long?>(null) }
@@ -164,8 +168,13 @@ fun HomeScreen(vm: MainViewModel) {
     var pendingHour by remember { mutableStateOf(21) }
 
     val context = LocalContext.current
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    val snackScope = androidx.compose.runtime.rememberCoroutineScope()
     fun toast(msg: String) {
-        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        snackScope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            snackbar.showSnackbar(msg)
+        }
     }
 
     val csvLauncher = rememberLauncherForActivityResult(
@@ -206,32 +215,27 @@ fun HomeScreen(vm: MainViewModel) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
         bottomBar = {
             AppBottomBar(
                 items = listOf(
                     NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
-                    NavItem("Resumo", Icons.Outlined.Home, Icons.Filled.Home),
+                    NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
                     NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
                     NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
                 ),
                 selected = tab,
                 onSelect = { tab = it },
-                addLabel = when (tab) {
-                    TAB_INCOMES -> "Novo ganho"
-                    TAB_DEBTS -> "Nova dívida"
-                    else -> "Novo gasto"
-                },
-                onAdd = {
-                    when (tab) {
-                        TAB_INCOMES -> incomeSheet = IncomeSheetState()
-                        TAB_DEBTS -> showNewDebt = true
-                        else -> showNew = true
-                    }
-                }
+                addOpen = addMenuOpen,
+                onAddOpenChange = { addMenuOpen = it },
+                onAddExpense = { showNew = true },
+                onAddIncome = { incomeSheet = IncomeSheetState() },
+                onAddDebt = { showNewDebt = true }
             )
         }
     ) { padding ->
-        Column(Modifier.padding(padding)) {
+        Box(Modifier.padding(padding)) {
+        Column(Modifier.fillMaxSize()) {
             // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
             HeaderBar {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -246,11 +250,16 @@ fun HomeScreen(vm: MainViewModel) {
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            if (tab == TAB_DEBTS) "Dívidas" else month.label(),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Crossfade(
+                            targetState = if (tab == TAB_DEBTS) "Dívidas" else month.label(),
+                            label = "tituloMes"
+                        ) { title ->
+                            Text(
+                                title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         val hint = if (tab != TAB_EXPENSES) null else when (state.scope) {
                             Scope.RANGE -> "Período personalizado"
                             Scope.SEARCH -> "Buscando em todos os meses"
@@ -274,21 +283,11 @@ fun HomeScreen(vm: MainViewModel) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Tipos de despesa") },
-                                onClick = { menuOpen = false; showTypes = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Categorias") },
-                                onClick = { menuOpen = false; showCategories = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Gastos recorrentes") },
-                                onClick = { menuOpen = false; showRecurring = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Copiar fixos do mês anterior") },
-                                onClick = {
+                            if (tab == TAB_EXPENSES || tab == TAB_SUMMARY) {
+                                MenuRow("Tipos de despesa", Icons.Default.Sell) { menuOpen = false; showTypes = true }
+                                MenuRow("Categorias", Icons.Default.Category) { menuOpen = false; showCategories = true }
+                                MenuRow("Gastos recorrentes", Icons.Default.Repeat) { menuOpen = false; showRecurring = true }
+                                MenuRow("Copiar fixos do mês anterior", Icons.Default.ContentCopy) {
                                     menuOpen = false
                                     vm.copyFixedFromPreviousMonth { n ->
                                         toast(
@@ -297,43 +296,45 @@ fun HomeScreen(vm: MainViewModel) {
                                         )
                                     }
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Captura por notificação") },
-                                onClick = { menuOpen = false; showCapture = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Tema (claro ou escuro)") },
-                                onClick = { menuOpen = false; showTheme = true }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Limite e lembrete") },
-                                onClick = { menuOpen = false; showSettings = true }
-                            )
+                                MenuRow("Captura por notificação", Icons.Default.NotificationsActive) {
+                                    menuOpen = false; showCapture = true
+                                }
+                                HorizontalDivider()
+                            }
+                            MenuRow("Aparência (modo e cor)", Icons.Default.Palette) { menuOpen = false; showTheme = true }
+                            if (tab == TAB_EXPENSES || tab == TAB_SUMMARY) {
+                                MenuRow("Limite e lembrete", Icons.Default.Tune) { menuOpen = false; showSettings = true }
+                            }
                             HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text("Exportar planilha (CSV)") },
-                                onClick = {
-                                    menuOpen = false
-                                    csvLauncher.launch("meus-gastos-${LocalDate.now()}.csv")
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Salvar backup") },
-                                onClick = {
-                                    menuOpen = false
-                                    backupLauncher.launch("meus-gastos-backup-${LocalDate.now()}.json")
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Restaurar backup") },
-                                onClick = {
-                                    menuOpen = false
-                                    restoreLauncher.launch(arrayOf("*/*"))
-                                }
-                            )
+                            MenuRow("Exportar planilha (CSV)", Icons.Default.FileDownload) {
+                                menuOpen = false
+                                csvLauncher.launch("meus-gastos-${LocalDate.now()}.csv")
+                            }
+                            MenuRow("Salvar backup", Icons.Default.Backup) {
+                                menuOpen = false
+                                backupLauncher.launch("meus-gastos-backup-${LocalDate.now()}.json")
+                            }
+                            MenuRow("Restaurar backup", Icons.Default.Restore) {
+                                menuOpen = false
+                                restoreLauncher.launch(arrayOf("*/*"))
+                            }
                         }
                     }
+                }
+            }
+
+            // Cartão de saldo logo abaixo do cabeçalho, que tem a mesma altura em todas as abas.
+            if (tab == TAB_SUMMARY) {
+                Box(
+                    Modifier
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+                ) {
+                    OverviewCard(
+                        o = overview,
+                        limit = limit.takeIf { it > 0 },
+                        prevLabel = month.minusMonths(1).monthName(),
+                        onIncomeClick = { tab = TAB_INCOMES }
+                    )
                 }
             }
 
@@ -359,7 +360,7 @@ fun HomeScreen(vm: MainViewModel) {
                 TextField(
                     value = filters.query,
                     onValueChange = { vm.setQuery(it) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusGlow(16.dp),
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     colors = softFieldColors(),
@@ -385,7 +386,7 @@ fun HomeScreen(vm: MainViewModel) {
                 )
             }
 
-                        item { ListTotal(state) }
+                        item { ListTotal(state, filters.creditOnly) }
 
                         if (state.items.isEmpty()) {
                             item {
@@ -414,19 +415,21 @@ fun HomeScreen(vm: MainViewModel) {
 
                     // ---------------------------------------------- Resumo: o painel do mês
                     TAB_SUMMARY -> {
+                        item {
+                            InsightsCard(
+                                // Dívida não pertence a um mês: só entra na conta do mês atual.
+                                owedCents = if (month == YearMonth.now()) debts.sumOf { it.status.balanceCents } else 0L,
+                                balanceCents = overview.balance,
+                                daysLeft = if (month == YearMonth.now()) {
+                                    month.lengthOfMonth() - LocalDate.now().dayOfMonth + 1
+                                } else null
+                            )
+                        }
                         captureTip(
                             show = !listenerOn && !captureTipDismissed,
                             onEnable = { showCapture = true },
                             onDismiss = { vm.dismissCaptureTip() }
                         )
-                        item {
-                            OverviewCard(
-                                o = overview,
-                                limit = limit.takeIf { it > 0 },
-                                prevLabel = month.minusMonths(1).monthName(),
-                                onIncomeClick = { tab = TAB_INCOMES }
-                            )
-                        }
                         if (summary.total > 0) {
                             item { SummaryCard(summary) }
                         } else {
@@ -437,6 +440,14 @@ fun HomeScreen(vm: MainViewModel) {
                                     "Quando você lançar gastos, o resumo aparece aqui."
                                 )
                             }
+                        }
+                        item {
+                            RecentExpensesCard(
+                                history
+                                    .filter { YearMonth.from(LocalDate.ofEpochDay(it.epochDay)) == month }
+                                    .sortedWith(compareByDescending<Expense> { it.epochDay }.thenByDescending { it.id })
+                                    .take(3)
+                            )
                         }
                         item { Spacer(Modifier.height(24.dp)) }
                     }
@@ -465,6 +476,16 @@ fun HomeScreen(vm: MainViewModel) {
                         item { Spacer(Modifier.height(24.dp)) }
                     }
                 }
+            }
+        }
+            // Escurece o conteúdo enquanto o menu do "+" está aberto (a barra de baixo fica de fora).
+            androidx.compose.animation.AnimatedVisibility(
+                visible = addMenuOpen,
+                enter = androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.fadeOut(),
+                modifier = Modifier.matchParentSize()
+            ) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
             }
         }
     }
@@ -578,9 +599,11 @@ fun HomeScreen(vm: MainViewModel) {
     }
 
     if (showTheme) {
-        ThemeDialog(
-            current = themeMode,
-            onSelect = { vm.setThemeMode(it) },
+        AppearanceSheet(
+            mode = themeMode,
+            onMode = { vm.setThemeMode(it) },
+            accent = accent,
+            onAccent = { vm.setAccent(it) },
             onDismiss = { showTheme = false }
         )
     }
@@ -593,7 +616,8 @@ fun HomeScreen(vm: MainViewModel) {
         openId = openDebtId,
         onOpenDismiss = { openDebtId = null },
         payRequestId = payDebtId,
-        onPayRequestHandled = { payDebtId = null }
+        onPayRequestHandled = { payDebtId = null },
+        onMessage = ::toast
     )
 
     incomeSheet?.let { st ->
@@ -693,7 +717,7 @@ fun HomeScreen(vm: MainViewModel) {
 
 /** Linha enxuta no topo da lista de gastos: quanto soma o que está na tela. */
 @Composable
-private fun ListTotal(state: UiState) {
+private fun ListTotal(state: UiState, creditOnly: Boolean = false) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -701,7 +725,8 @@ private fun ListTotal(state: UiState) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "Total · ${state.items.size} lançamento(s)",
+            if (creditOnly) "Fatura do cartão · ${state.items.size} compra(s)"
+            else "Total · ${state.items.size} lançamento(s)",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
@@ -711,14 +736,14 @@ private fun ListTotal(state: UiState) {
             style = MaterialTheme.typography.titleMedium,
             fontFamily = MoneyFont,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
 @Composable
 private fun SummaryCard(state: MonthSummary) {
-    var byCategory by remember { mutableStateOf(false) }
+    var byCategory by remember { mutableStateOf(true) }
     Card(
         shape = RoundedCornerShape(16.dp),
         border = CardBorder,
@@ -726,19 +751,15 @@ private fun SummaryCard(state: MonthSummary) {
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "Gastos do mês",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Para onde foi o dinheiro",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
+            val top = state.byCategory.firstOrNull()
             Text(
-                state.total.toMoney(),
-                style = MaterialTheme.typography.headlineLarge,
-                fontFamily = MoneyFont,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "${state.count} lançamento(s)",
+                if (top != null && state.total > 0)
+                    "${state.count} lançamento(s) · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
+                else "${state.count} lançamento(s)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -770,7 +791,7 @@ private fun SummaryCard(state: MonthSummary) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
+                                .clip(Bars.shape),
                             color = color,
                             trackColor = MaterialTheme.colorScheme.outlineVariant
                         )
@@ -788,7 +809,8 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Canvas(Modifier.size(120.dp)) {
+        Box(Modifier.size(136.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(136.dp)) {
             val strokeWidth = size.minDimension * 0.2f
             val diameter = size.minDimension - strokeWidth
             val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
@@ -817,7 +839,22 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                 start += sweep
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Total",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    total.toMoney(),
+                    fontFamily = MoneyFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1
+                )
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             data.forEach { (name, value) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -830,7 +867,8 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                     Column {
                         Text(
                             "$name · ${value * 100 / total}%",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (name == data.first().first) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -993,13 +1031,15 @@ private fun FiltersSheet(
     var from by remember { mutableStateOf(filters.from) }
     var to by remember { mutableStateOf(filters.to) }
     var byValue by remember { mutableStateOf(filters.sortByValue) }
+    var creditOnly by remember { mutableStateOf(filters.creditOnly) }
     var pickFrom by remember { mutableStateOf(false) }
     var pickTo by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -1087,6 +1127,24 @@ private fun FiltersSheet(
             }
 
             Text(
+                "Pagamento",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !creditOnly,
+                    onClick = { creditOnly = false },
+                    label = { Text("Todos") }
+                )
+                FilterChip(
+                    selected = creditOnly,
+                    onClick = { creditOnly = true },
+                    label = { Text("Cartão de crédito (fatura)") }
+                )
+            }
+
+            Text(
                 "Período (substitui o mês)",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1143,7 +1201,8 @@ private fun FiltersSheet(
                                 maxCents = parseCents(maxText),
                                 from = from,
                                 to = to,
-                                sortByValue = byValue
+                                sortByValue = byValue,
+                                creditOnly = creditOnly
                             )
                         )
                     },
@@ -1158,4 +1217,16 @@ private fun FiltersSheet(
 
     if (pickFrom) PickDate(from, onPick = { from = it }, onDismiss = { pickFrom = false })
     if (pickTo) PickDate(to, onPick = { to = it }, onDismiss = { pickTo = false })
+}
+
+/** Item do menu ⋮ com ícone à esquerda. */
+@Composable
+private fun MenuRow(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+        onClick = onClick
+    )
 }

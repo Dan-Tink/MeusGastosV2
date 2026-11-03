@@ -31,7 +31,12 @@ jobs:
 
 
       - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee build.log || {
+            grep -E "^e: |error:|What went wrong" -A2 build.log | head -20 | while IFS= read -r l; do echo "::error::${l}"; done
+            exit 1
+          }
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4

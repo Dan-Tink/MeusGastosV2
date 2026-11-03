@@ -2,7 +2,6 @@
 
 package com.meusgastos.app
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -31,7 +29,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,9 +36,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -52,10 +49,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -137,7 +133,7 @@ private fun DebtSummaryCard(t: DebtTotals) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                t.openBalanceCents.toMoney(),
+                moneyAnnotated(t.openBalanceCents),
                 style = MaterialTheme.typography.headlineLarge,
                 fontFamily = MoneyFont,
                 fontWeight = FontWeight.Bold,
@@ -146,7 +142,7 @@ private fun DebtSummaryCard(t: DebtTotals) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                "Soma do que ainda falta pagar. É dinheiro que devo, não são despesas já pagas.",
+                "Dinheiro que devo; não conta como gasto do mês.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -207,7 +203,7 @@ private fun StatusChip(settled: Boolean) {
 @Composable
 private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
     val st = v.status
-    val tint = typeColor(v.debt.creditor)
+    val tint = MaterialTheme.colorScheme.primary
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -273,7 +269,7 @@ private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
+                    .clip(Bars.shape),
                 color = PositiveColor,
                 trackColor = MaterialTheme.colorScheme.outlineVariant
             )
@@ -285,7 +281,7 @@ private fun DebtCard(v: DebtView, onClick: () -> Unit, onPay: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
                 if (!st.settled) {
-                    androidx.compose.material3.FilledTonalButton(
+                    androidx.compose.material3.Button(
                         onClick = onPay,
                         shape = RoundedCornerShape(50),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -314,10 +310,10 @@ fun DebtFlows(
     openId: Long?,
     onOpenDismiss: () -> Unit,
     payRequestId: Long? = null,
-    onPayRequestHandled: () -> Unit = {}
+    onPayRequestHandled: () -> Unit = {},
+    onMessage: (String) -> Unit = {}
 ) {
-    val context = LocalContext.current
-    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+    fun toast(msg: String) = onMessage(msg)
 
     var editing by remember { mutableStateOf<Debt?>(null) }
     var payingId by remember { mutableStateOf<Long?>(null) }
@@ -460,7 +456,8 @@ private fun DebtDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -515,7 +512,7 @@ private fun DebtDetailSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
+                            .clip(Bars.shape),
                         color = PositiveColor,
                         trackColor = MaterialTheme.colorScheme.outlineVariant
                     )
@@ -641,71 +638,92 @@ private fun PaymentDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var pickDate by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val amountFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(350)
+        runCatching { amountFocus.requestFocus() }
+        keyboard?.show()
+    }
+    fun submit() {
+        val cents = parseCents(amount)
+        val result = if (cents == null) PaymentCheck.INVALID_AMOUNT
+        else checkPayment(view.debt.originalCents, view.paidCents, cents)
+        if (cents == null || result != PaymentCheck.OK) {
+            error = paymentMessage(result, st.balanceCents)
+        } else {
+            onConfirm(cents, date, note) { msg -> error = msg }
+        }
+    }
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Registrar pagamento") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "${view.debt.creditor} · saldo devedor ${st.balanceCents.toMoney()}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {
-                        amount = it
-                        error = null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Valor pago") },
-                    placeholder = { Text("50,00") },
-                    prefix = { Text("R$ ") },
-                    singleLine = true,
-                    isError = error != null,
-                    supportingText = error?.let { msg -> { Text(msg) } },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                TextButton(onClick = {
-                    amount = st.balanceCents.toPlain()
-                    error = null
-                }) { Text("Pagar tudo (${st.balanceCents.toMoney()})") }
-                OutlinedButton(
-                    onClick = { pickDate = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Data: ${date.fmt()}")
-                }
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Observação (opcional)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp)
-                )
+        sheetState = sheetState,
+        containerColor = sheetColor(),
+        shape = SheetShape
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Registrar pagamento",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            AmountHero(
+                value = amount,
+                onValueChange = { amount = it; error = null },
+                fieldModifier = Modifier.focusRequester(amountFocus)
+            )
+            Text(
+                error ?: "${view.debt.creditor} · saldo devedor ${st.balanceCents.toMoney()}",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (error != null) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                PillChip(false, { amount = st.balanceCents.toPlain(); error = null }, "Pagar tudo (${st.balanceCents.toMoney()})")
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val cents = parseCents(amount)
-                val result = if (cents == null) PaymentCheck.INVALID_AMOUNT
-                else checkPayment(view.debt.originalCents, view.paidCents, cents)
-                if (cents == null || result != PaymentCheck.OK) {
-                    error = paymentMessage(result, st.balanceCents)
-                } else {
-                    onConfirm(cents, date, note) { msg -> error = msg }
+            androidx.compose.material3.Surface(
+                onClick = { pickDate = true },
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Text(date.fmt(), fontWeight = FontWeight.Medium)
                 }
-            }) { Text("Registrar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
+            }
+            TextField(
+                value = note,
+                onValueChange = { note = it },
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
+                label = { Text("Observação (opcional)") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
+            )
+            androidx.compose.material3.Button(
+                onClick = { submit() },
+                enabled = parseCents(amount) != null,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) { Text("Registrar pagamento", fontWeight = FontWeight.Bold) }
+        }
+    }
 
     if (pickDate) {
         PickDate(initial = date, onPick = { date = it }, onDismiss = { pickDate = false })
@@ -728,6 +746,15 @@ private fun DebtFormSheet(
     var description by remember { mutableStateOf(initial?.description ?: "") }
     var amount by remember { mutableStateOf(initial?.originalCents?.toPlain() ?: "") }
     var confirmLower by remember { mutableStateOf(false) }
+    val amountFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (initial == null) {
+            kotlinx.coroutines.delay(350)
+            runCatching { amountFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
 
     val cents = parseCents(amount)
     val valid = creditor.isNotBlank() && cents != null
@@ -744,7 +771,8 @@ private fun DebtFormSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = sheetColor(),
+        shape = SheetShape
     ) {
         Column(
             modifier = Modifier
@@ -757,40 +785,42 @@ private fun DebtFormSheet(
         ) {
             Text(
                 if (initial == null) "Nova dívida" else "Editar dívida",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedTextField(
+            AmountHero(value = amount, onValueChange = { amount = it }, fieldModifier = Modifier.focusRequester(amountFocus))
+            Text(
+                "Valor original",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextField(
                 value = creditor,
                 onValueChange = { creditor = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Credor") },
                 placeholder = { Text("ex.: Minha irmã") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
-            OutlinedTextField(
+            TextField(
                 value = description,
                 onValueChange = { description = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlow(14.dp),
                 label = { Text("Descrição (opcional)") },
                 placeholder = { Text("ex.: Dinheiro emprestado") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
-            )
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Valor original") },
-                placeholder = { Text("300,00") },
-                prefix = { Text("R$ ") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = softFieldColors()
             )
 
             Card(
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 border = CardBorder,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
