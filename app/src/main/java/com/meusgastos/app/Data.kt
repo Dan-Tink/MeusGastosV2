@@ -738,10 +738,173 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
-/** Só acrescenta a coluna do crédito (padrão 0). Nenhum dado existente é alterado ou apagado. */
+private fun hasColumn(db: SupportSQLiteDatabase, table: String, column: String): Boolean =
+    db.query("PRAGMA table_info($table)").use { c ->
+        var found = false
+        while (c.moveToNext()) if (c.getString(1) == column) { found = true; break }
+        found
+    }
+
+/**
+ * Crédito (coluna isCredit) e, ao mesmo tempo, adoção do banco de quem veio da linha antiga do app
+ * (versão 1.1), que usou o MESMO número de versão (7) com outro formato: gastos com "paid" e
+ * "receipt", ganhos com "recurringId"/"ym" e dívidas com "paidCents". Nada é apagado: o que o app
+ * novo não usa mais fica guardado em tabelas "legacy_*", e o que dá para converter é convertido.
+ * Num banco que já é do formato novo, só acrescenta a coluna isCredit.
+ */
 private val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE expenses ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
+        // 1) Tabelas que o app atual espera (não fazem nada se já existirem).
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS pending (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "source TEXT NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "isIncome INTEGER NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "method TEXT NOT NULL, " +
+                "epochDay INTEGER NOT NULL, " +
+                "createdAt INTEGER NOT NULL, " +
+                "type TEXT NOT NULL, " +
+                "category TEXT NOT NULL, " +
+                "status INTEGER NOT NULL DEFAULT 0)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS fixed_incomes (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "dayOfMonth INTEGER NOT NULL, " +
+                "startMonth TEXT NOT NULL, " +
+                "endMonth TEXT)"
+        )
+
+        // 2) Dívidas no formato antigo: o "já pago" vira um pagamento no histórico.
+        if (hasColumn(db, "debts", "paidCents")) {
+            db.execSQL("ALTER TABLE debts RENAME TO legacy_debts_v1")
+            db.execSQL(
+                "CREATE TABLE debts (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "creditor TEXT NOT NULL, " +
+                    "description TEXT NOT NULL, " +
+                    "originalCents INTEGER NOT NULL, " +
+                    "createdDay INTEGER NOT NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO debts(id, creditor, description, originalCents, createdDay) " +
+                    "SELECT id, creditor, note, amountCents, epochDay FROM legacy_debts_v1"
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS debt_payments (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "debtId INTEGER NOT NULL, " +
+                    "amountCents INTEGER NOT NULL, " +
+                    "epochDay INTEGER NOT NULL, " +
+                    "note TEXT NOT NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO debt_payments(debtId, amountCents, epochDay, note) " +
+                    "SELECT id, paidCents, COALESCE(settledDay, epochDay), 'Valor já pago antes da atualização' " +
+                    "FROM legacy_debts_v1 WHERE paidCents > 0"
+            )
+        }
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS debts (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "creditor TEXT NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "originalCents INTEGER NOT NULL, " +
+                "createdDay INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS debt_payments (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "debtId INTEGER NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "epochDay INTEGER NOT NULL, " +
+                "note TEXT NOT NULL)"
+        )
+
+        // 3) Ganhos no formato antigo: os ganhos recorrentes viram ganhos fixos (como na migração
+        //    5→6) e a tabela volta ao formato simples. Os ganhos já lançados continuam todos lá.
+        if (hasColumn(db, "incomes", "recurringId")) {
+            class Old(val id: Long, val description: String, val cents: Long, val day: Int, val last: String)
+
+            val olds = ArrayList<Old>()
+            db.query(
+                "SELECT id, description, amountCents, dayOfMonth, lastGenerated FROM recurring WHERE isIncome = 1"
+            ).use { c ->
+                while (c.moveToNext()) {
+                    olds.add(Old(c.getLong(0), c.getString(1), c.getLong(2), c.getInt(3), c.getString(4)))
+                }
+            }
+            for (o in olds) {
+                val last = runCatching { YearMonth.parse(o.last) }.getOrNull() ?: YearMonth.now()
+                val existing: Long? = db.query(
+                    "SELECT id FROM incomes WHERE recurringId = ? AND ym = ? LIMIT 1",
+                    arrayOf<Any?>(o.id, last.toString())
+                ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+                val start = if (existing != null) {
+                    db.execSQL("DELETE FROM incomes WHERE id = ?", arrayOf<Any?>(existing))
+                    last
+                } else {
+                    last.plusMonths(1)
+                }
+                db.execSQL(
+                    "INSERT INTO fixed_incomes(description, amountCents, dayOfMonth, startMonth, endMonth) " +
+                        "VALUES (?, ?, ?, ?, NULL)",
+                    arrayOf<Any?>(o.description, o.cents, o.day, start.toString())
+                )
+            }
+            db.execSQL("DELETE FROM recurring WHERE isIncome = 1")
+
+            db.execSQL(
+                "CREATE TABLE incomes_new (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "description TEXT NOT NULL, " +
+                    "amountCents INTEGER NOT NULL, " +
+                    "epochDay INTEGER NOT NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO incomes_new(id, description, amountCents, epochDay) " +
+                    "SELECT id, description, amountCents, epochDay FROM incomes"
+            )
+            db.execSQL("DROP TABLE incomes")
+            db.execSQL("ALTER TABLE incomes_new RENAME TO incomes")
+        }
+
+        // 4) Gastos: tira "paid" e "receipt" (guardados em legacy_expense_extras) e põe isCredit.
+        if (hasColumn(db, "expenses", "paid") || hasColumn(db, "expenses", "receipt")) {
+            val paid = if (hasColumn(db, "expenses", "paid")) "paid" else "1"
+            val receipt = if (hasColumn(db, "expenses", "receipt")) "receipt" else "NULL"
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS legacy_expense_extras AS " +
+                    "SELECT id, $paid AS paid, $receipt AS receipt FROM expenses"
+            )
+            db.execSQL(
+                "CREATE TABLE expenses_new (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "type TEXT NOT NULL, " +
+                    "description TEXT NOT NULL, " +
+                    "amountCents INTEGER NOT NULL, " +
+                    "epochDay INTEGER NOT NULL, " +
+                    "category TEXT NOT NULL, " +
+                    "groupId INTEGER, " +
+                    "installmentNo INTEGER NOT NULL, " +
+                    "installmentCount INTEGER NOT NULL, " +
+                    "isCredit INTEGER NOT NULL DEFAULT 0)"
+            )
+            db.execSQL(
+                "INSERT INTO expenses_new(id, type, description, amountCents, epochDay, category, " +
+                    "groupId, installmentNo, installmentCount, isCredit) " +
+                    "SELECT id, type, description, amountCents, epochDay, category, " +
+                    "groupId, installmentNo, installmentCount, 0 FROM expenses"
+            )
+            db.execSQL("DROP TABLE expenses")
+            db.execSQL("ALTER TABLE expenses_new RENAME TO expenses")
+        } else if (!hasColumn(db, "expenses", "isCredit")) {
+            db.execSQL("ALTER TABLE expenses ADD COLUMN isCredit INTEGER NOT NULL DEFAULT 0")
+        }
     }
 }
 
