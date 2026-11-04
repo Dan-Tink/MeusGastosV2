@@ -48,6 +48,19 @@ suspend fun buildCsv(dao: ExpenseDao): String {
             m = m.plusMonths(1)
         }
     }
+    // Despesas fixas: uma linha por mês, do início até o mês atual (ou até o fim da despesa).
+    dao.fixedExpensesOnce().forEach { f ->
+        val start = runCatching { YearMonth.parse(f.startMonth) }.getOrNull() ?: return@forEach
+        val end = f.endMonth?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+            ?.let { if (it.isAfter(nowMonth)) nowMonth else it } ?: nowMonth
+        var m = start
+        while (!m.isAfter(end)) {
+            val day = m.atDay(minOf(f.dayOfMonth.coerceAtLeast(1), m.lengthOfMonth()))
+            val cells = listOf(day.fmt(), "Gasto fixo", f.type, f.category, f.description, f.amountCents.toPlain())
+            rows.add(day.toEpochDay() to cells.joinToString(";") { csvCell(it) })
+            m = m.plusMonths(1)
+        }
+    }
     val sb = StringBuilder("﻿")
     sb.append("Data;Movimento;Tipo;Categoria;Descrição;Valor\r\n")
     rows.sortedBy { it.first }.forEach { sb.append(it.second).append("\r\n") }
@@ -65,6 +78,7 @@ suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
     val debts = dao.debtsOnce()
     val debtPayments = dao.debtPaymentsOnce()
     val pending = dao.pendingOnce()
+    val fixedExpenses = dao.fixedExpensesOnce()
 
     val root = JSONObject()
     root.put("app", "MeusGastos")
@@ -161,6 +175,20 @@ suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
                 .put("type", it.type)
                 .put("category", it.category)
                 .put("status", it.status)
+        })
+    )
+    root.put(
+        "fixedExpenses",
+        JSONArray(fixedExpenses.map {
+            JSONObject()
+                .put("type", it.type)
+                .put("category", it.category)
+                .put("description", it.description)
+                .put("amountCents", it.amountCents)
+                .put("dayOfMonth", it.dayOfMonth)
+                .put("startMonth", it.startMonth)
+                .put("endMonth", it.endMonth ?: JSONObject.NULL)
+                .put("icon", it.icon ?: JSONObject.NULL)
         })
     )
     root.put("settings", settings.toJson())
@@ -305,7 +333,22 @@ suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): 
                 status = it.optInt("status", 0)
             )
         }
-        dao.replaceAll(types, categories, expenses, incomes, recurring, fixedIncomes, debts, debtPayments, pending)
+        val fixedExpenses = root.optJSONArray("fixedExpenses")?.objects()?.map {
+            FixedExpense(
+                type = it.getString("type"),
+                category = it.getString("category"),
+                description = it.getString("description"),
+                amountCents = it.getLong("amountCents"),
+                dayOfMonth = it.getInt("dayOfMonth"),
+                startMonth = it.getString("startMonth"),
+                endMonth = if (it.isNull("endMonth")) null else it.getString("endMonth"),
+                icon = if (it.isNull("icon")) null else it.getString("icon")
+            )
+        }
+        dao.replaceAll(
+            types, categories, expenses, incomes, recurring, fixedIncomes, debts, debtPayments,
+            pending, fixedExpenses
+        )
         root.optJSONObject("settings")?.let { runCatching { settings.applyJson(it) } }
         true
     } catch (e: Exception) {

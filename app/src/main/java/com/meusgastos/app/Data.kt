@@ -73,6 +73,56 @@ data class FixedIncome(
     val endMonth: String? = null
 )
 
+/**
+ * Despesa fixa: vale em todo mês de [startMonth] até [endMonth] (null = sem fim). Como o ganho fixo,
+ * nada é lançado mês a mês: ela é somada ao mês na hora de mostrar, inclusive nos meses futuros.
+ */
+@Entity(tableName = "fixed_expenses")
+data class FixedExpense(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val type: String,
+    val category: String,
+    val description: String,
+    val amountCents: Long,
+    val dayOfMonth: Int,
+    val startMonth: String,
+    val endMonth: String? = null,
+    val icon: String? = null
+)
+
+fun FixedExpense.activeIn(m: YearMonth): Boolean {
+    val start = runCatching { YearMonth.parse(startMonth) }.getOrNull() ?: return false
+    val end = endMonth?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+    return !m.isBefore(start) && (end == null || !m.isAfter(end))
+}
+
+private const val VIRTUAL_STEP = 1_000_000L
+
+/** Gasto "de mentira" de uma despesa fixa num mês: o id negativo guarda a despesa e o mês. */
+fun virtualExpenseId(fixedId: Long, m: YearMonth): Long = -(fixedId * VIRTUAL_STEP + m.year * 12L + (m.monthValue - 1))
+
+val Expense.isFixedVirtual: Boolean get() = id < 0
+val Expense.virtualFixedId: Long get() = (-id) / VIRTUAL_STEP
+val Expense.virtualMonth: YearMonth
+    get() {
+        val idx = (-id) % VIRTUAL_STEP
+        return YearMonth.of((idx / 12).toInt(), (idx % 12).toInt() + 1)
+    }
+
+/** As despesas fixas que valem no mês [m], já no formato de gasto. */
+fun virtualExpenses(list: List<FixedExpense>, m: YearMonth): List<Expense> =
+    list.filter { it.activeIn(m) }.map { f ->
+        Expense(
+            id = virtualExpenseId(f.id, m),
+            type = f.type,
+            description = f.description,
+            amountCents = f.amountCents,
+            epochDay = m.atDay(minOf(f.dayOfMonth.coerceAtLeast(1), m.lengthOfMonth())).toEpochDay(),
+            category = f.category,
+            icon = f.icon
+        )
+    }
+
 /** Este ganho fixo vale no mês [m]? */
 fun FixedIncome.activeIn(m: YearMonth): Boolean {
     val start = runCatching { YearMonth.parse(startMonth) }.getOrNull() ?: return false
@@ -183,6 +233,57 @@ abstract class ExpenseDao {
     @Query("SELECT * FROM recurring")
     abstract suspend fun recurringOnce(): List<Recurring>
 
+    // ---- despesas fixas ----
+    @Query("SELECT * FROM fixed_expenses")
+    abstract fun observeFixedExpenses(): Flow<List<FixedExpense>>
+
+    @Query("SELECT * FROM fixed_expenses")
+    abstract suspend fun fixedExpensesOnce(): List<FixedExpense>
+
+    @Query("SELECT * FROM fixed_expenses WHERE id = :id")
+    abstract suspend fun fixedExpenseById(id: Long): FixedExpense?
+
+    @Insert
+    abstract suspend fun insertFixedExpense(f: FixedExpense): Long
+
+    @Insert
+    abstract suspend fun insertFixedExpenses(list: List<FixedExpense>)
+
+    @Update
+    abstract suspend fun updateFixedExpense(f: FixedExpense)
+
+    @Delete
+    abstract suspend fun deleteFixedExpense(f: FixedExpense)
+
+    @Query("DELETE FROM fixed_expenses")
+    abstract suspend fun deleteAllFixedExpenses()
+
+    @Query("UPDATE fixed_expenses SET type = :newName WHERE type = :oldName")
+    abstract suspend fun renameTypeInFixedExpenses(oldName: String, newName: String)
+
+    @Query("UPDATE fixed_expenses SET category = :newName WHERE category = :oldName")
+    abstract suspend fun renameCategoryInFixedExpenses(oldName: String, newName: String)
+
+    /** Muda a despesa fixa a partir do mês [from]; os meses anteriores ficam como estavam. */
+    @Transaction
+    open suspend fun reviseFixedExpense(old: FixedExpense, updated: FixedExpense, from: YearMonth) {
+        val start = runCatching { YearMonth.parse(old.startMonth) }.getOrNull() ?: from
+        if (!from.isAfter(start)) {
+            updateFixedExpense(updated.copy(id = old.id, startMonth = old.startMonth, endMonth = old.endMonth))
+        } else {
+            updateFixedExpense(old.copy(endMonth = from.minusMonths(1).toString()))
+            insertFixedExpense(updated.copy(id = 0, startMonth = from.toString(), endMonth = old.endMonth))
+        }
+    }
+
+    /** Para a despesa fixa a partir do mês [from]; os meses anteriores continuam contando. */
+    @Transaction
+    open suspend fun endFixedExpense(old: FixedExpense, from: YearMonth) {
+        val start = runCatching { YearMonth.parse(old.startMonth) }.getOrNull() ?: from
+        if (!from.isAfter(start)) deleteFixedExpense(old)
+        else updateFixedExpense(old.copy(endMonth = from.minusMonths(1).toString()))
+    }
+
     @Query("SELECT COUNT(*) FROM expenses WHERE receipt = :name")
     abstract suspend fun countByReceipt(name: String): Int
 
@@ -279,7 +380,8 @@ abstract class ExpenseDao {
     @Query(
         "SELECT (SELECT COUNT(*) FROM expenses WHERE type = :name) + " +
             "(SELECT COUNT(*) FROM recurring WHERE type = :name) + " +
-            "(SELECT COUNT(*) FROM pending WHERE type = :name AND status = 0)"
+            "(SELECT COUNT(*) FROM pending WHERE type = :name AND status = 0) + " +
+            "(SELECT COUNT(*) FROM fixed_expenses WHERE type = :name)"
     )
     abstract suspend fun countByType(name: String): Int
 
@@ -289,6 +391,7 @@ abstract class ExpenseDao {
         renameTypeInExpenses(oldName, newName)
         renameTypeInRecurring(oldName, newName)
         renameTypeInPending(oldName, newName)
+        renameTypeInFixedExpenses(oldName, newName)
         if (typeExists(newName) > 0) deleteType(oldName) else renameTypeRow(oldName, newName)
     }
 
@@ -320,7 +423,8 @@ abstract class ExpenseDao {
     @Query(
         "SELECT (SELECT COUNT(*) FROM expenses WHERE category = :name) + " +
             "(SELECT COUNT(*) FROM recurring WHERE category = :name) + " +
-            "(SELECT COUNT(*) FROM pending WHERE category = :name AND status = 0)"
+            "(SELECT COUNT(*) FROM pending WHERE category = :name AND status = 0) + " +
+            "(SELECT COUNT(*) FROM fixed_expenses WHERE category = :name)"
     )
     abstract suspend fun countByCategory(name: String): Int
 
@@ -330,6 +434,7 @@ abstract class ExpenseDao {
         renameCategoryInExpenses(oldName, newName)
         renameCategoryInRecurring(oldName, newName)
         renameCategoryInPending(oldName, newName)
+        renameCategoryInFixedExpenses(oldName, newName)
         if (categoryExists(newName) > 0) deleteCategory(oldName) else renameCategoryRow(oldName, newName)
     }
 
@@ -548,7 +653,8 @@ abstract class ExpenseDao {
         fixedIncomes: List<FixedIncome>,
         debts: List<Debt>,
         debtPayments: List<DebtPayment>,
-        pending: List<PendingTx>? = null
+        pending: List<PendingTx>? = null,
+        fixedExpenses: List<FixedExpense>? = null
     ) {
         deleteAllExpenses()
         deleteAllIncomes()
@@ -560,6 +666,7 @@ abstract class ExpenseDao {
         deleteAllCategories()
         // Backup sem o campo "pending" (versões antigas): mantém as pendentes de agora.
         if (pending != null) deleteAllPending()
+        if (fixedExpenses != null) deleteAllFixedExpenses()
         insertTypes(types)
         insertCategories(categories)
         insertExpenses(expenses)
@@ -569,6 +676,7 @@ abstract class ExpenseDao {
         insertDebts(debts)
         insertDebtPayments(debtPayments)
         if (pending != null) insertPendingList(pending.map { it.copy(id = 0) })
+        if (fixedExpenses != null) insertFixedExpenses(fixedExpenses.map { it.copy(id = 0) })
     }
 }
 
@@ -936,12 +1044,31 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+/** Só cria a tabela das despesas fixas. Nenhum dado existente é lido, alterado ou apagado. */
+private val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS fixed_expenses (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "type TEXT NOT NULL, " +
+                "category TEXT NOT NULL, " +
+                "description TEXT NOT NULL, " +
+                "amountCents INTEGER NOT NULL, " +
+                "dayOfMonth INTEGER NOT NULL, " +
+                "startMonth TEXT NOT NULL, " +
+                "endMonth TEXT, " +
+                "icon TEXT)"
+        )
+    }
+}
+
 @Database(
     entities = [
         Expense::class, ExpenseType::class, Category::class, Income::class,
-        Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class
+        Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class,
+        FixedExpense::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -957,7 +1084,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

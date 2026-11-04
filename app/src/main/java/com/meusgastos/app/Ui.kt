@@ -516,7 +516,8 @@ fun HomeScreen(vm: MainViewModel) {
             onDelete = {},
             onDeleteScoped = { _, _ -> },
             onManageTypes = { showTypes = true },
-            onManageCategories = { showCategories = true }
+            onManageCategories = { showCategories = true },
+            onSaveFixed = { vm.saveFixedExpense(it); showNew = false; toast("Despesa fixa salva!") }
         )
     }
 
