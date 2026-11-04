@@ -191,7 +191,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         fixedIncomesFlow,
         fixedExpensesFlow,
         month
-    ) { expenses, incomes, typeList, fixedList, fixedExpenseList, m ->
+    ) { a ->
+        @Suppress("UNCHECKED_CAST")
+        val expenses = a[0] as List<Expense>
+        @Suppress("UNCHECKED_CAST")
+        val incomes = a[1] as List<Income>
+        @Suppress("UNCHECKED_CAST")
+        val typeList = a[2] as List<ExpenseType>
+        @Suppress("UNCHECKED_CAST")
+        val fixedList = a[3] as List<FixedIncome>
+        @Suppress("UNCHECKED_CAST")
+        val fixedExpenseList = a[4] as List<FixedExpense>
+        val m = a[5] as YearMonth
         val fixedNames = typeList.filter { it.fixed }.map { it.name }.toSet()
         val monthExpenses = expenses.filter { inMonth(it.epochDay, m) } + virtualExpenses(fixedExpenseList, m)
         val fixed = monthExpenses.filter { it.type in fixedNames }.sumOf { it.amountCents }
