@@ -99,6 +99,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
     private val typesFlow = dao.observeTypes()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
+    private val fixedExpensesFlow = dao.observeFixedExpenses()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
     private val fixedIncomesFlow = dao.observeFixedIncomes()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
 
@@ -168,8 +170,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         combine(fixedIncomesFlow, month) { list, m -> list.filter { it.activeIn(m) } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val monthSummary: StateFlow<MonthSummary> = combine(expensesFlow, month) { all, m ->
-        val list = all.filter { inMonth(it.epochDay, m) }
+    val monthSummary: StateFlow<MonthSummary> = combine(expensesFlow, fixedExpensesFlow, month) { all, fixedList, m ->
+        val list = all.filter { inMonth(it.epochDay, m) } + virtualExpenses(fixedList, m)
         MonthSummary(
             total = list.sumOf { it.amountCents },
             count = list.size,
@@ -187,10 +189,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         incomesFlow,
         typesFlow,
         fixedIncomesFlow,
+        fixedExpensesFlow,
         month
-    ) { expenses, incomes, typeList, fixedList, m ->
+    ) { expenses, incomes, typeList, fixedList, fixedExpenseList, m ->
         val fixedNames = typeList.filter { it.fixed }.map { it.name }.toSet()
-        val monthExpenses = expenses.filter { inMonth(it.epochDay, m) }
+        val monthExpenses = expenses.filter { inMonth(it.epochDay, m) } + virtualExpenses(fixedExpenseList, m)
         val fixed = monthExpenses.filter { it.type in fixedNames }.sumOf { it.amountCents }
         val all = monthExpenses.sumOf { it.amountCents }
         val income = incomes.filter { inMonth(it.epochDay, m) }.sumOf { it.amountCents } +
@@ -199,7 +202,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // No mês atual, compara com o mesmo trecho do mês anterior (até o dia de hoje).
         val upTo: Int? =
             if (m == YearMonth.now()) minOf(LocalDate.now().dayOfMonth, prev.lengthOfMonth()) else null
-        val prevSpent = expenses
+        val prevSpent = (expenses + virtualExpenses(fixedExpenseList, prev))
             .filter { e ->
                 val d = LocalDate.ofEpochDay(e.epochDay)
                 YearMonth.from(d) == prev && (upTo == null || d.dayOfMonth <= upTo)
@@ -214,7 +217,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Overview())
 
-    val state: StateFlow<UiState> = combine(expensesFlow, month, filters) { all, m, f ->
+    val state: StateFlow<UiState> = combine(expensesFlow, fixedExpensesFlow, month, filters) { real, fixedList, m, f ->
         val q = f.query.norm().trim()
         val from = f.from
         val to = f.to
@@ -224,6 +227,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             f.dateActive -> Scope.RANGE
             q.isNotEmpty() -> Scope.SEARCH
             else -> Scope.MONTH
+        }
+        // Despesas fixas entram como gastos do mês (ou de cada mês do período escolhido).
+        val all: List<Expense> = when (scope) {
+            Scope.MONTH -> real + virtualExpenses(fixedList, m)
+            Scope.RANGE -> {
+                val now = YearMonth.now()
+                val first = from?.let { YearMonth.from(it) } ?: to?.let { YearMonth.from(it).minusMonths(11) } ?: m
+                val last = to?.let { YearMonth.from(it) } ?: first.plusMonths(11).let { if (it.isBefore(now)) now else it }
+                val months = generateSequence(first) { it.plusMonths(1) }.takeWhile { !it.isAfter(last) }.take(60).toList()
+                real + months.flatMap { virtualExpenses(fixedList, it) }
+            }
+            Scope.SEARCH -> real
+        }.let { l ->
+            if (scope == Scope.SEARCH) l
+            else l.sortedWith(compareByDescending<Expense> { it.epochDay }.thenByDescending { it.id })
         }
         var list = all.filter { e ->
             val d = LocalDate.ofEpochDay(e.epochDay)
@@ -273,6 +291,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      * 1ª); senão, o valor já é o de cada parcela.
      */
     fun save(e: Expense, installments: Int = 1, amountIsTotal: Boolean = false) {
+        if (e.isFixedVirtual) {
+            saveFixedFromMonth(e)
+            return
+        }
         viewModelScope.launch {
             val base = LocalDate.ofEpochDay(e.epochDay)
             if (e.id != 0L) {
@@ -316,7 +338,61 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Cria uma despesa fixa a partir do gasto montado na tela: vale desse mês em diante. */
+    fun saveFixedExpense(e: Expense) {
+        viewModelScope.launch {
+            val date = LocalDate.ofEpochDay(e.epochDay)
+            dao.insertFixedExpense(
+                FixedExpense(
+                    type = e.type,
+                    category = e.category,
+                    description = e.description,
+                    amountCents = e.amountCents,
+                    dayOfMonth = date.dayOfMonth,
+                    startMonth = YearMonth.from(date).toString(),
+                    icon = e.icon
+                )
+            )
+            settings.lastType = e.type
+            settings.lastCategory = e.category
+            if (!filters.value.dateActive) month.value = YearMonth.from(date)
+        }
+    }
+
+    /** Edita uma despesa fixa a partir do mês da linha tocada; os meses anteriores não mudam. */
+    private fun saveFixedFromMonth(e: Expense) {
+        viewModelScope.launch {
+            val old = dao.fixedExpenseById(e.virtualFixedId) ?: return@launch
+            val from = e.virtualMonth
+            val shownDay = dayIn(from, old.dayOfMonth).toEpochDay()
+            // Se o dia não foi mexido, mantém o dia original (num mês curto ele aparece "cortado").
+            val day = if (e.epochDay == shownDay) old.dayOfMonth else LocalDate.ofEpochDay(e.epochDay).dayOfMonth
+            dao.reviseFixedExpense(
+                old = old,
+                updated = old.copy(
+                    type = e.type,
+                    category = e.category,
+                    description = e.description,
+                    amountCents = e.amountCents,
+                    dayOfMonth = day,
+                    icon = e.icon
+                ),
+                from = from
+            )
+            settings.lastType = e.type
+            settings.lastCategory = e.category
+        }
+    }
+
     fun delete(e: Expense) {
+        if (e.isFixedVirtual) {
+            // "Excluir" uma despesa fixa = parar de repetir a partir do mês da linha.
+            viewModelScope.launch {
+                val old = dao.fixedExpenseById(e.virtualFixedId) ?: return@launch
+                dao.endFixedExpense(old, e.virtualMonth)
+            }
+            return
+        }
         viewModelScope.launch {
             dao.delete(e)
             // O arquivo do comprovante só some se nenhum outro gasto (ex.: outra parcela) o usa.
@@ -327,6 +403,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Exclui uma parcela e, conforme [scope], as seguintes ou todas. */
     fun deleteScoped(e: Expense, scope: GroupScope) {
+        if (e.isFixedVirtual) {
+            delete(e)
+            return
+        }
         viewModelScope.launch {
             val group = e.groupId
             if (group == null || scope == GroupScope.ONE) {
