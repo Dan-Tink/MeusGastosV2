@@ -77,10 +77,12 @@ data class Overview(
     /** Total gasto no mês anterior, para comparação. */
     val prevSpent: Long = 0,
     /** Se não for null, [prevSpent] só conta até este dia do mês anterior (comparação justa). */
-    val prevUpToDay: Int? = null
+    val prevUpToDay: Int? = null,
+    /** Pagamentos de dívidas feitos no mês: saem do saldo, mas não são gasto nem entram nos relatórios. */
+    val debtPaid: Long = 0
 ) {
     val spent: Long get() = fixed + variable
-    val balance: Long get() = income - fixed - variable
+    val balance: Long get() = income - fixed - variable - debtPaid
 }
 
 private fun inMonth(epochDay: Long, m: YearMonth): Boolean =
@@ -190,7 +192,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         typesFlow,
         fixedIncomesFlow,
         fixedExpensesFlow,
-        month
+        month,
+        dao.observeDebtPayments()
     ) { a ->
         @Suppress("UNCHECKED_CAST")
         val expenses = a[0] as List<Expense>
@@ -203,6 +206,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         @Suppress("UNCHECKED_CAST")
         val fixedExpenseList = a[4] as List<FixedExpense>
         val m = a[5] as YearMonth
+        @Suppress("UNCHECKED_CAST")
+        val debtPayments = a[6] as List<DebtPayment>
         val fixedNames = typeList.filter { it.fixed }.map { it.name }.toSet()
         val monthExpenses = expenses.filter { inMonth(it.epochDay, m) } + virtualExpenses(fixedExpenseList, m)
         val fixed = monthExpenses.filter { it.type in fixedNames }.sumOf { it.amountCents }
@@ -224,7 +229,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             fixed = fixed,
             variable = all - fixed,
             prevSpent = prevSpent,
-            prevUpToDay = upTo
+            prevUpToDay = upTo,
+            debtPaid = debtPayments.filter { inMonth(it.epochDay, m) }.sumOf { it.amountCents }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Overview())
 
