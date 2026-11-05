@@ -107,6 +107,13 @@ fun OverviewCard(
                 Tile("Fixos", o.fixed, WarningColor, hidden, Modifier.weight(1f))
                 Tile("Variáveis", o.variable, AccentViolet, hidden, Modifier.weight(1f))
             }
+            if (o.debtPaid > 0) {
+                Text(
+                    if (hidden) "Saldo já desconta pagamentos de dívidas" else "Saldo já desconta ${o.debtPaid.toMoney()} pagos em dívidas",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             if (reference != null) {
                 LinearProgressIndicator(

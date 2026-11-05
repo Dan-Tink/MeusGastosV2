@@ -132,7 +132,7 @@ fun FixedIncome.activeIn(m: YearMonth): Boolean {
 
 /**
  * Dívida sem data de vencimento (ex.: R$ 300 que devo à minha irmã). Não é uma despesa: os
- * pagamentos ficam em [DebtPayment] e não entram nos gastos nem nos relatórios do mês.
+ * pagamentos ficam em [DebtPayment]: não entram nos gastos nem nos relatórios, mas descontam do saldo do mês.
  * O "já pago" e o saldo não são guardados aqui: saem da soma dos pagamentos (veja DebtMath.kt).
  */
 @Entity(tableName = "debts")
