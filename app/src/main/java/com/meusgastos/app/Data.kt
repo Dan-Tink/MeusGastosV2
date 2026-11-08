@@ -48,7 +48,7 @@ data class ExpenseType(
 )
 
 @Entity(tableName = "categories")
-data class Category(@PrimaryKey val name: String)
+data class Category(@PrimaryKey val name: String, val icon: String? = null)
 
 @Entity(tableName = "incomes")
 data class Income(
@@ -401,6 +401,9 @@ abstract class ExpenseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertCategories(list: List<Category>)
+
+    @Query("UPDATE categories SET icon = :icon WHERE name = :name")
+    abstract suspend fun setCategoryIcon(name: String, icon: String?)
 
     @Query("DELETE FROM categories WHERE name = :name")
     abstract suspend fun deleteCategory(name: String)
@@ -1045,6 +1048,15 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
 }
 
 /** Só cria a tabela das despesas fixas. Nenhum dado existente é lido, alterado ou apagado. */
+/** 10 -> 11: ícone próprio por categoria (coluna nova e opcional; nada é apagado). */
+private val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        if (!hasColumn(db, "categories", "icon")) {
+            db.execSQL("ALTER TABLE categories ADD COLUMN icon TEXT")
+        }
+    }
+}
+
 private val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -1068,7 +1080,7 @@ private val MIGRATION_9_10 = object : Migration(9, 10) {
         Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class,
         FixedExpense::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1084,7 +1096,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

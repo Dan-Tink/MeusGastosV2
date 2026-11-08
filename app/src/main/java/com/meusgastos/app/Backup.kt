@@ -89,6 +89,10 @@ suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
     )
     root.put("categories", JSONArray(categories.map { it.name }))
     root.put(
+        "categoryIcons",
+        JSONObject().also { o -> categories.forEach { c -> c.icon?.let { o.put(c.name, it) } } }
+    )
+    root.put(
         "expenses",
         JSONArray(expenses.map {
             JSONObject()
@@ -236,7 +240,11 @@ suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): 
             ExpenseType(it.getString("name"), it.optBoolean("fixed", false))
         }
         val categories = (root.optJSONArray("categories") ?: JSONArray()).let { arr ->
-            (0 until arr.length()).map { Category(arr.getString(it)) }
+            val icons = root.optJSONObject("categoryIcons")
+            (0 until arr.length()).map { i ->
+                val n = arr.getString(i)
+                Category(n, icons?.optString(n, "")?.takeIf { it.isNotEmpty() })
+            }
         }
         val expenses = (root.optJSONArray("expenses") ?: JSONArray()).objects().map {
             Expense(

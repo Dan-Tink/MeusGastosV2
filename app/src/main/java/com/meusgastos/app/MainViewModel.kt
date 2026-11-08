@@ -510,10 +510,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- categorias
 
-    fun addCategory(name: String) {
+    fun addCategory(name: String, icon: String? = null) {
         val n = name.trim()
         if (n.isEmpty()) return
-        viewModelScope.launch { dao.insertCategory(Category(n)) }
+        viewModelScope.launch {
+            dao.insertCategory(Category(n, icon))
+            // Se já existia (insert ignora), ainda assim aplica o ícone escolhido.
+            if (icon != null) dao.setCategoryIcon(n, icon)
+        }
+    }
+
+    fun setCategoryIcon(name: String, icon: String?) {
+        viewModelScope.launch { dao.setCategoryIcon(name, icon) }
     }
 
     fun renameCategory(old: String, new: String) {

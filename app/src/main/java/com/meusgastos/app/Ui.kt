@@ -123,6 +123,15 @@ private data class IncomeSheetState(val fixed: FixedIncome? = null, val variable
 
 @Composable
 fun HomeScreen(vm: MainViewModel) {
+    val cats by vm.categories.collectAsStateWithLifecycle()
+    val iconMap = remember(cats) { cats.mapNotNull { c -> c.icon?.let { c.name to it } }.toMap() }
+    androidx.compose.runtime.CompositionLocalProvider(LocalCategoryIcons provides iconMap) {
+        HomeScreenContent(vm)
+    }
+}
+
+@Composable
+private fun HomeScreenContent(vm: MainViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val types by vm.types.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -668,7 +677,8 @@ fun HomeScreen(vm: MainViewModel) {
     if (showCategories) {
         CategoriesDialog(
             categories = categories,
-            onAdd = { vm.addCategory(it) },
+            onAdd = { n, icon -> vm.addCategory(n, icon) },
+            onSetIcon = { n, icon -> vm.setCategoryIcon(n, icon) },
             onRename = { old, new -> vm.renameCategory(old, new) },
             onDelete = { name ->
                 vm.deleteCategory(name) { ok ->

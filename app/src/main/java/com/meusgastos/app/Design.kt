@@ -99,6 +99,9 @@ fun categoryIcon(name: String): ImageVector = when (name) {
     else -> Icons.Default.Category
 }
 
+/** Ícone escolhido para cada categoria (nome -> chave de [ExpenseIcons]); fornecido na tela principal. */
+val LocalCategoryIcons = androidx.compose.runtime.compositionLocalOf<Map<String, String>> { emptyMap() }
+
 /** Círculo com o ícone da categoria. No escuro o fundo é mais forte e o ícone assume a cor da categoria. */
 @Composable
 fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false, iconKey: String? = null) {
@@ -122,7 +125,7 @@ fun CategoryBadge(name: String, size: Dp = 44.dp, selected: Boolean = false, ico
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            (expenseIconFor(iconKey) ?: categoryIcon(name)),
+            (expenseIconFor(iconKey) ?: expenseIconFor(LocalCategoryIcons.current[name]) ?: categoryIcon(name)),
             contentDescription = null,
             tint = fg,
             modifier = Modifier.size(size * 0.5f)
