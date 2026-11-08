@@ -82,7 +82,7 @@ class NavItem(
 )
 
 /**
- * Barra inferior: duas abas, o botão "+" no centro e mais duas abas. O "+" abre botões
+ * Barra inferior: três abas, o botão "+" e mais duas abas. O "+" abre botões
  * flutuantes para criar despesa, ganho ou dívida, de qualquer aba.
  */
 @Composable
@@ -96,7 +96,7 @@ fun AppBottomBar(
     onAddIncome: () -> Unit,
     onAddDebt: () -> Unit
 ) {
-    require(items.size == 4) { "A barra espera 4 abas" }
+    require(items.size == 5) { "A barra espera 5 abas" }
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 10.dp) {
       Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -109,6 +109,7 @@ fun AppBottomBar(
         ) {
             NavTab(items[0], selected == 0) { onSelect(0) }
             NavTab(items[1], selected == 1) { onSelect(1) }
+            NavTab(items[2], selected == 2) { onSelect(2) }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 val rotation by androidx.compose.animation.core.animateFloatAsState(
                     if (addOpen) 45f else 0f, label = "addRotation"
@@ -190,8 +191,8 @@ fun AppBottomBar(
                     }
                 }
             }
-            NavTab(items[2], selected == 2) { onSelect(2) }
             NavTab(items[3], selected == 3) { onSelect(3) }
+            NavTab(items[4], selected == 4) { onSelect(4) }
         }
       }
     }

@@ -96,9 +96,7 @@ fun ExpenseSheet(
     onManageTypes: () -> Unit,
     onManageCategories: () -> Unit,
     /** true = os dados vêm de uma notificação de banco: ao salvar, é um lançamento novo. */
-    isPrefill: Boolean = false,
-    /** Se informado, gasto novo ganha a opção "Repetir todo mês" (despesa fixa). */
-    onSaveFixed: ((Expense) -> Unit)? = null
+    isPrefill: Boolean = false
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var type by remember {
@@ -123,7 +121,6 @@ fun ExpenseSheet(
     }
     var instText by remember { mutableStateOf("1") }
     var showCustom by remember { mutableStateOf(false) }
-    var repeat by remember { mutableStateOf(false) }
     var amountIsTotal by remember { mutableStateOf(false) }
     var pickDate by remember { mutableStateOf(false) }
     var credit by remember { mutableStateOf(false) }
@@ -220,7 +217,8 @@ fun ExpenseSheet(
         category = category,
         groupId = initial?.groupId,
         installmentNo = initial?.installmentNo ?: 0,
-        installmentCount = initial?.installmentCount ?: 0
+        installmentCount = initial?.installmentCount ?: 0,
+        fixedId = initial?.fixedId
     )
 
     val focus = remember { FocusRequester() }
@@ -441,46 +439,8 @@ fun ExpenseSheet(
                     }
                 }
 
-                // ---- Repetir todo mês: vira despesa fixa (só em gasto novo) ----
-                if (initial == null && onSaveFixed != null) {
-                    Surface(
-                        onClick = {
-                            repeat = !repeat
-                            if (repeat) { credit = false; instText = "1"; showCustom = false }
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Repetir todo mês", fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    if (repeat) "Despesa fixa: aparece sozinha de ${YearMonth.from(date).label()} em diante"
-                                    else "Para contas que se repetem (aluguel, internet…)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            androidx.compose.material3.Switch(checked = repeat, onCheckedChange = {
-                                repeat = it
-                                if (it) { credit = false; instText = "1"; showCustom = false }
-                            })
-                        }
-                    }
-                }
-                if (initial != null && initial.isFixedVirtual) {
-                    Text(
-                        "Despesa fixa — a mudança vale a partir de ${YearMonth.from(LocalDate.ofEpochDay(initial.epochDay)).label()}; meses anteriores ficam como estão.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
                 // ---- Pagamento: à vista ou parcelado (só em gasto novo) ----
-                if (initial == null && !repeat) {
+                if (initial == null) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -527,7 +487,7 @@ fun ExpenseSheet(
                 }
 
                 // ---- Crédito: a compra cai na fatura do mês seguinte (só em gasto novo) ----
-                if (initial == null && !repeat) {
+                if (initial == null) {
                     Surface(
                         onClick = { credit = !credit },
                         shape = RoundedCornerShape(14.dp),
@@ -590,7 +550,7 @@ fun ExpenseSheet(
                 }
 
                 // ---- Comprovante: foto, imagem ou PDF ----
-                if (!repeat && initial?.isFixedVirtual != true) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SheetLabel("Comprovante")
                     val r = receipt
                     if (r == null) {
@@ -679,10 +639,7 @@ fun ExpenseSheet(
                             tint = MaterialTheme.colorScheme.error
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            if (initial?.isFixedVirtual == true) "Parar esta despesa fixa daqui em diante" else "Excluir gasto",
-                            color = MaterialTheme.colorScheme.error
-                        )
+                        Text("Excluir gasto", color = MaterialTheme.colorScheme.error)
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -702,8 +659,7 @@ fun ExpenseSheet(
                             scopeAction = ScopeAction.SAVE
                         } else {
                             savedFlag = true
-                            if (repeat && onSaveFixed != null) onSaveFixed(buildExpense())
-                            else onSave(buildExpense(), installments, amountIsTotal, false)
+                            onSave(buildExpense(), installments, amountIsTotal, false)
                         }
                     },
                     enabled = valid,
@@ -713,12 +669,11 @@ fun ExpenseSheet(
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
-                        if (repeat) "Salvar despesa fixa"
-                        else if (initial == null && installments > 1) "Lançar $installments parcelas" else "Salvar",
+                        if (initial == null && installments > 1) "Lançar $installments parcelas" else "Salvar",
                         fontWeight = FontWeight.Bold
                     )
                 }
-                if (initial == null && !repeat) {
+                if (initial == null) {
                     TextButton(
                         onClick = {
                             onSave(buildExpense(), installments, amountIsTotal, true)
@@ -745,14 +700,8 @@ fun ExpenseSheet(
     if (confirmDelete && initial != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text(if (initial.isFixedVirtual) "Parar despesa fixa?" else "Excluir gasto?") },
-            text = {
-                Text(
-                    if (initial.isFixedVirtual)
-                        "\"${initial.title()}\" deixa de aparecer a partir de ${YearMonth.from(LocalDate.ofEpochDay(initial.epochDay)).label()}. Os meses anteriores ficam como estão."
-                    else "\"${initial.title()}\" será removido."
-                )
-            },
+            title = { Text("Excluir gasto?") },
+            text = { Text("\"${initial.title()}\" será removido.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false

@@ -43,6 +43,8 @@ import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
@@ -117,6 +119,10 @@ private const val TAB_EXPENSES = 0
 private const val TAB_SUMMARY = 1
 private const val TAB_INCOMES = 2
 private const val TAB_DEBTS = 3
+private const val TAB_FIXED = 4
+
+/** Ordem das abas na barra de baixo (o "+" fica entre a 3ª e a 4ª). */
+private val TAB_ORDER = listOf(TAB_EXPENSES, TAB_FIXED, TAB_SUMMARY, TAB_INCOMES, TAB_DEBTS)
 
 /** Folha de ganho aberta: [fixed] ou [variable] preenchido = editando; os dois nulos = novo ganho. */
 private data class IncomeSheetState(val fixed: FixedIncome? = null, val variable: Income? = null)
@@ -140,6 +146,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
     val overview by vm.overview.collectAsStateWithLifecycle()
     val monthIncomes by vm.monthIncomes.collectAsStateWithLifecycle()
     val monthFixed by vm.monthFixedIncomes.collectAsStateWithLifecycle()
+    val fixedExpenses by vm.monthFixedExpenses.collectAsStateWithLifecycle()
     val summary by vm.monthSummary.collectAsStateWithLifecycle()
     val debts by vm.debts.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
@@ -165,6 +172,9 @@ private fun HomeScreenContent(vm: MainViewModel) {
     var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
     var addMenuOpen by remember { mutableStateOf(false) }
     var showNewDebt by remember { mutableStateOf(false) }
+    /** Folha de despesa fixa: null = fechada; id 0 = nova; senão a que está sendo editada. */
+    var fixedSheet by remember { mutableStateOf<FixedExpense?>(null) }
+    var payingFixed by remember { mutableStateOf<FixedExpense?>(null) }
     var openDebtId by remember { mutableStateOf<Long?>(null) }
     var payDebtId by remember { mutableStateOf<Long?>(null) }
     var debtsOpenFilter by rememberSaveable { mutableStateOf(true) }
@@ -230,12 +240,13 @@ private fun HomeScreenContent(vm: MainViewModel) {
             AppBottomBar(
                 items = listOf(
                     NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
+                    NavItem("Fixas", Icons.Outlined.EventRepeat, Icons.Filled.EventRepeat),
                     NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
                     NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
                     NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
                 ),
-                selected = tab,
-                onSelect = { tab = it },
+                selected = TAB_ORDER.indexOf(tab),
+                onSelect = { tab = TAB_ORDER[it] },
                 addOpen = addMenuOpen,
                 onAddOpenChange = { addMenuOpen = it },
                 onAddExpense = { showNew = true },
@@ -478,6 +489,18 @@ private fun HomeScreenContent(vm: MainViewModel) {
                         item { Spacer(Modifier.height(24.dp)) }
                     }
 
+                    // ---------------------------------------------- Fixas: modelo mensal + botão Pagar
+                    TAB_FIXED -> {
+                        fixedExpensesTab(
+                            month = month,
+                            items = fixedExpenses,
+                            onNew = { fixedSheet = FixedExpense(type = "", category = "", description = "", amountCents = 0, dayOfMonth = 1, startMonth = month.toString()) },
+                            onPay = { payingFixed = it },
+                            onEdit = { fixedSheet = it }
+                        )
+                        item { Spacer(Modifier.height(24.dp)) }
+                    }
+
                     // ---------------------------------------------- Dívidas: sem data de vencimento
                     else -> {
                         debtsTab(
@@ -525,8 +548,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onDelete = {},
             onDeleteScoped = { _, _ -> },
             onManageTypes = { showTypes = true },
-            onManageCategories = { showCategories = true },
-            onSaveFixed = { vm.saveFixedExpense(it); showNew = false; toast("Despesa fixa salva!") }
+            onManageCategories = { showCategories = true }
         )
     }
 
@@ -634,6 +656,32 @@ private fun HomeScreenContent(vm: MainViewModel) {
         onPayRequestHandled = { payDebtId = null },
         onMessage = ::toast
     )
+
+    fixedSheet?.let { f ->
+        FixedExpenseSheet(
+            editing = f.takeIf { it.id != 0L },
+            month = month,
+            types = types,
+            categories = categories,
+            lastType = vm.lastType,
+            lastCategory = vm.lastCategory,
+            onSave = { vm.saveFixedExpense(it) },
+            onEnd = { vm.endFixedExpense(it) },
+            onDismiss = { fixedSheet = null }
+        )
+    }
+
+    payingFixed?.let { f ->
+        PayFixedSheet(
+            fixed = f,
+            month = month,
+            onConfirm = { cents, day ->
+                vm.payFixedExpense(f, cents, day)
+                toast("${f.description} pago!")
+            },
+            onDismiss = { payingFixed = null }
+        )
+    }
 
     incomeSheet?.let { st ->
         IncomeSheet(
