@@ -37,7 +37,9 @@ data class Expense(
     /** Nome do arquivo do comprovante (pasta "comprovantes" do app). Null = sem comprovante. */
     val receipt: String? = null,
     /** Ícone escolhido para este gasto (chave de ExpenseIcons). Null = o ícone da categoria. */
-    val icon: String? = null
+    val icon: String? = null,
+    /** Despesa fixa que este gasto pagou (aba "Fixas"). Null = gasto comum. */
+    val fixedId: Long? = null
 )
 
 @Entity(tableName = "types")
@@ -48,7 +50,7 @@ data class ExpenseType(
 )
 
 @Entity(tableName = "categories")
-data class Category(@PrimaryKey val name: String)
+data class Category(@PrimaryKey val name: String, val icon: String? = null)
 
 @Entity(tableName = "incomes")
 data class Income(
@@ -74,8 +76,8 @@ data class FixedIncome(
 )
 
 /**
- * Despesa fixa: vale em todo mês de [startMonth] até [endMonth] (null = sem fim). Como o ganho fixo,
- * nada é lançado mês a mês: ela é somada ao mês na hora de mostrar, inclusive nos meses futuros.
+ * Despesa fixa (modelo): fica na aba "Fixas" de [startMonth] até [endMonth] (null = sem fim).
+ * Ela só vira gasto quando você toca em "Pagar": aí é criado um [Expense] com [Expense.fixedId].
  */
 @Entity(tableName = "fixed_expenses")
 data class FixedExpense(
@@ -95,33 +97,6 @@ fun FixedExpense.activeIn(m: YearMonth): Boolean {
     val end = endMonth?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
     return !m.isBefore(start) && (end == null || !m.isAfter(end))
 }
-
-private const val VIRTUAL_STEP = 1_000_000L
-
-/** Gasto "de mentira" de uma despesa fixa num mês: o id negativo guarda a despesa e o mês. */
-fun virtualExpenseId(fixedId: Long, m: YearMonth): Long = -(fixedId * VIRTUAL_STEP + m.year * 12L + (m.monthValue - 1))
-
-val Expense.isFixedVirtual: Boolean get() = id < 0
-val Expense.virtualFixedId: Long get() = (-id) / VIRTUAL_STEP
-val Expense.virtualMonth: YearMonth
-    get() {
-        val idx = (-id) % VIRTUAL_STEP
-        return YearMonth.of((idx / 12).toInt(), (idx % 12).toInt() + 1)
-    }
-
-/** As despesas fixas que valem no mês [m], já no formato de gasto. */
-fun virtualExpenses(list: List<FixedExpense>, m: YearMonth): List<Expense> =
-    list.filter { it.activeIn(m) }.map { f ->
-        Expense(
-            id = virtualExpenseId(f.id, m),
-            type = f.type,
-            description = f.description,
-            amountCents = f.amountCents,
-            epochDay = m.atDay(minOf(f.dayOfMonth.coerceAtLeast(1), m.lengthOfMonth())).toEpochDay(),
-            category = f.category,
-            icon = f.icon
-        )
-    }
 
 /** Este ganho fixo vale no mês [m]? */
 fun FixedIncome.activeIn(m: YearMonth): Boolean {
@@ -401,6 +376,9 @@ abstract class ExpenseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertCategories(list: List<Category>)
+
+    @Query("UPDATE categories SET icon = :icon WHERE name = :name")
+    abstract suspend fun setCategoryIcon(name: String, icon: String?)
 
     @Query("DELETE FROM categories WHERE name = :name")
     abstract suspend fun deleteCategory(name: String)
@@ -1045,6 +1023,24 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
 }
 
 /** Só cria a tabela das despesas fixas. Nenhum dado existente é lido, alterado ou apagado. */
+/** 11 -> 12: liga cada gasto à despesa fixa que ele pagou (coluna nova e opcional; nada é apagado). */
+private val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        if (!hasColumn(db, "expenses", "fixedId")) {
+            db.execSQL("ALTER TABLE expenses ADD COLUMN fixedId INTEGER")
+        }
+    }
+}
+
+/** 10 -> 11: ícone próprio por categoria (coluna nova e opcional; nada é apagado). */
+private val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        if (!hasColumn(db, "categories", "icon")) {
+            db.execSQL("ALTER TABLE categories ADD COLUMN icon TEXT")
+        }
+    }
+}
+
 private val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -1068,7 +1064,7 @@ private val MIGRATION_9_10 = object : Migration(9, 10) {
         Recurring::class, PendingTx::class, FixedIncome::class, Debt::class, DebtPayment::class,
         FixedExpense::class
     ],
-    version = 10,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -1084,7 +1080,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "meus_gastos.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO types(name, fixed) VALUES ('Fixa', 1), ('Variável', 0)")

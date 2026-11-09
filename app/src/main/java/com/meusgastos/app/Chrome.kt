@@ -81,9 +81,17 @@ class NavItem(
     val badge: Int = 0
 )
 
+/** Altura da barra de abas (sem o botão "+" que sobe acima dela). */
+val BottomBarHeight = 72.dp
+
+/** Quanto o botão "+" (com o anel) se estende acima da barra. */
+private val FabLift = 52.dp
+
 /**
- * Barra inferior: duas abas, o botão "+" no centro e mais duas abas. O "+" abre botões
- * flutuantes para criar despesa, ganho ou dívida, de qualquer aba.
+ * Barra inferior com cinco abas. O botão "+" fica acima da aba do meio (Resumo), num anel da
+ * cor da barra que o encaixa nela como parte das abas. Ele abre botões flutuantes para criar
+ * despesa, ganho ou dívida, de qualquer aba. Ocupa [BottomBarHeight] + a parte do "+" que sobe;
+ * essa faixa de cima é transparente e deixa o toque passar para o conteúdo.
  */
 @Composable
 fun AppBottomBar(
@@ -94,106 +102,122 @@ fun AppBottomBar(
     onAddOpenChange: (Boolean) -> Unit,
     onAddExpense: () -> Unit,
     onAddIncome: () -> Unit,
-    onAddDebt: () -> Unit
+    onAddDebt: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    require(items.size == 4) { "A barra espera 4 abas" }
-    Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 10.dp) {
-      Column {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+    require(items.size == 5) { "A barra espera 5 abas" }
+    Box(modifier.fillMaxWidth().height(BottomBarHeight + FabLift)) {
+        Surface(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 10.dp
         ) {
-            NavTab(items[0], selected == 0) { onSelect(0) }
-            NavTab(items[1], selected == 1) { onSelect(1) }
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                val rotation by androidx.compose.animation.core.animateFloatAsState(
-                    if (addOpen) 45f else 0f, label = "addRotation"
-                )
-                val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 80.dp.roundToPx() }
-                val glowColor = MaterialTheme.colorScheme.primary
-                Box(
+            Column {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
                     Modifier
-                        .size(56.dp)
-                        // Brilho suave na cor do tema ao redor do botão (cabe dentro da barra de 72 dp).
-                        .drawBehind {
-                            val r = 36.dp.toPx()
-                            drawCircle(
-                                brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                                    0.70f to glowColor.copy(alpha = 0.38f),
-                                    1f to Color.Transparent,
-                                    center = center,
-                                    radius = r
-                                ),
-                                radius = r
-                            )
-                        }
-                        .shadow(6.dp, CircleShape)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable(
-                            role = Role.Button,
-                            onClickLabel = if (addOpen) "Fechar opções" else "Adicionar",
-                            onClick = { onAddOpenChange(!addOpen) }
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(BottomBarHeight - 1.dp)
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = if (addOpen) "Fechar opções" else "Adicionar",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier
-                            .size(30.dp)
-                            .rotate(rotation)
-                    )
+                    items.forEachIndexed { i, item -> NavTab(item, selected == i) { onSelect(i) } }
                 }
-                val menuState = remember { androidx.compose.animation.core.MutableTransitionState(false) }
-                menuState.targetState = addOpen
-                // O popup fica na tela até a animação de saída terminar.
-                if (menuState.currentState || menuState.targetState) {
-                    androidx.compose.ui.window.Popup(
-                        alignment = Alignment.BottomCenter,
-                        offset = androidx.compose.ui.unit.IntOffset(0, -gap),
-                        onDismissRequest = { onAddOpenChange(false) },
-                        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
-                    ) {
-                        androidx.compose.animation.AnimatedVisibility(
-                            visibleState = menuState,
-                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(
-                                initialScale = 0.5f,
-                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+            }
+        }
+
+        // Anel (da cor da barra) com o botão redondo dentro, apoiado na borda de cima da barra.
+        val ringSize = 60.dp
+        val rotation by androidx.compose.animation.core.animateFloatAsState(
+            if (addOpen) 45f else 0f, label = "addRotation"
+        )
+        val gap = with(androidx.compose.ui.platform.LocalDensity.current) { (ringSize + 8.dp).roundToPx() }
+        val glowColor = MaterialTheme.colorScheme.primary
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .size(ringSize)
+                .shadow(8.dp, CircleShape)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                Modifier
+                    .size(50.dp)
+                    // Brilho suave na cor do tema ao redor do botão.
+                    .drawBehind {
+                        val r = 34.dp.toPx()
+                        drawCircle(
+                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                0.70f to glowColor.copy(alpha = 0.30f),
+                                1f to Color.Transparent,
+                                center = center,
+                                radius = r
                             ),
-                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(
-                                targetScale = 0.5f,
-                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                            )
-                        ) {
-                            // Três botões redondos em arco sobre o "+": os das pontas mais baixos, o do meio mais alto.
-                            Box(Modifier.width(300.dp).height(140.dp)) {
-                                AddOption("Ganho", Icons.Filled.Payments,
-                                    Modifier.align(Alignment.BottomCenter).offset(x = (-88).dp, y = (-6).dp)) {
-                                    onAddOpenChange(false); onAddIncome()
-                                }
-                                AddOption("Despesa", Icons.Filled.Receipt,
-                                    Modifier.align(Alignment.BottomCenter).offset(y = (-50).dp)) {
-                                    onAddOpenChange(false); onAddExpense()
-                                }
-                                AddOption("Dívida", Icons.Filled.AccountBalanceWallet,
-                                    Modifier.align(Alignment.BottomCenter).offset(x = 88.dp, y = (-6).dp)) {
-                                    onAddOpenChange(false); onAddDebt()
-                                }
+                            radius = r
+                        )
+                    }
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = if (addOpen) "Fechar opções" else "Adicionar",
+                        onClick = { onAddOpenChange(!addOpen) }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = if (addOpen) "Fechar opções" else "Adicionar",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .rotate(rotation)
+                )
+            }
+        }
+        // O menu fica ancorado no anel; o popup fica na tela até a animação de saída terminar.
+        Box(Modifier.align(Alignment.TopCenter).size(ringSize)) {
+            val menuState = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+            menuState.targetState = addOpen
+            if (menuState.currentState || menuState.targetState) {
+                androidx.compose.ui.window.Popup(
+                    alignment = Alignment.BottomCenter,
+                    offset = androidx.compose.ui.unit.IntOffset(0, -gap),
+                    onDismissRequest = { onAddOpenChange(false) },
+                    properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+                ) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visibleState = menuState,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(
+                            initialScale = 0.5f,
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                        ),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(
+                            targetScale = 0.5f,
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                        )
+                    ) {
+                        // Três botões redondos em arco sobre o "+": os das pontas mais baixos, o do meio mais alto.
+                        Box(Modifier.width(300.dp).height(140.dp)) {
+                            AddOption("Ganho", Icons.Filled.Payments,
+                                Modifier.align(Alignment.BottomCenter).offset(x = (-88).dp, y = (-6).dp)) {
+                                onAddOpenChange(false); onAddIncome()
+                            }
+                            AddOption("Despesa", Icons.Filled.Receipt,
+                                Modifier.align(Alignment.BottomCenter).offset(y = (-50).dp)) {
+                                onAddOpenChange(false); onAddExpense()
+                            }
+                            AddOption("Dívida", Icons.Filled.AccountBalanceWallet,
+                                Modifier.align(Alignment.BottomCenter).offset(x = 88.dp, y = (-6).dp)) {
+                                onAddOpenChange(false); onAddDebt()
                             }
                         }
                     }
                 }
             }
-            NavTab(items[2], selected == 2) { onSelect(2) }
-            NavTab(items[3], selected == 3) { onSelect(3) }
         }
-      }
     }
 }
 

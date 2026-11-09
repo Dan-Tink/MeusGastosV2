@@ -146,13 +146,17 @@ fun TypesDialog(
 @Composable
 fun CategoriesDialog(
     categories: List<Category>,
-    onAdd: (String) -> Unit,
+    onAdd: (String, String?) -> Unit,
+    onSetIcon: (String, String?) -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var input by remember { mutableStateOf("") }
     var renaming by remember { mutableStateOf<String?>(null) }
+    var newIcon by remember { mutableStateOf<String?>(null) }
+    /** Quem está escolhendo ícone: o nome de uma categoria existente, ou "" para a nova. */
+    var pickingFor by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -166,12 +170,9 @@ fun CategoriesDialog(
             ) {
                 categories.forEach { c ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(categoryColor(c.name))
-                        )
+                        Box(Modifier.clickable { pickingFor = c.name }) {
+                            CategoryBadge(c.name, size = 36.dp, iconKey = c.icon)
+                        }
                         Spacer(Modifier.width(10.dp))
                         Text(
                             c.name,
@@ -192,14 +193,29 @@ fun CategoriesDialog(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (renaming != null) "Novo nome" else "Nova categoria") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (renaming == null) {
+                        Box(Modifier.clickable { pickingFor = "" }) {
+                            CategoryBadge(input.ifBlank { "Nova" }, size = 44.dp, iconKey = newIcon)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text(if (renaming != null) "Novo nome" else "Nova categoria") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+                if (renaming == null) {
+                    Text(
+                        "Toque no círculo para escolher o ícone",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {
@@ -207,14 +223,64 @@ fun CategoriesDialog(
                 enabled = input.isNotBlank(),
                 onClick = {
                     val r = renaming
-                    if (r != null) onRename(r, input) else onAdd(input)
+                    if (r != null) onRename(r, input) else onAdd(input, newIcon)
                     input = ""
+                    newIcon = null
                     renaming = null
                 }
             ) { Text(if (renaming != null) "Salvar" else "Adicionar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Fechar") } }
     )
+
+    val target = pickingFor
+    if (target != null) {
+        val current = if (target.isEmpty()) newIcon else categories.firstOrNull { it.name == target }?.icon
+        AlertDialog(
+            onDismissRequest = { pickingFor = null },
+            title = { Text("Ícone da categoria") },
+            text = {
+                FlowRow(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ExpenseIcons.forEach { (key, vector) ->
+                        val sel = current == key
+                        Box(
+                            Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (sel) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f)
+                                )
+                                .clickable {
+                                    if (target.isEmpty()) newIcon = key else onSetIcon(target, key)
+                                    pickingFor = null
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                vector,
+                                contentDescription = key,
+                                tint = if (sel) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (target.isEmpty()) newIcon = null else onSetIcon(target, null)
+                    pickingFor = null
+                }) { Text("Padrão") }
+            },
+            dismissButton = { TextButton(onClick = { pickingFor = null }) { Text("Cancelar") } }
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------------------

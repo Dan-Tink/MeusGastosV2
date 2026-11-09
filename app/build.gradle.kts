@@ -23,8 +23,8 @@ android {
         applicationId = "com.meusgastos.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 35
-        versionName = "1.11.1"
+        versionCode = 38
+        versionName = "1.13.1"
     }
 
     signingConfigs {
