@@ -235,28 +235,10 @@ private fun HomeScreenContent(vm: MainViewModel) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
-        bottomBar = {
-            AppBottomBar(
-                items = listOf(
-                    NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
-                    NavItem("Fixas", Icons.Outlined.EventRepeat, Icons.Filled.EventRepeat),
-                    NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
-                    NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
-                    NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
-                ),
-                selected = TAB_ORDER.indexOf(tab),
-                onSelect = { tab = TAB_ORDER[it] },
-                addOpen = addMenuOpen,
-                onAddOpenChange = { addMenuOpen = it },
-                onAddExpense = { showNew = true },
-                onAddIncome = { incomeSheet = IncomeSheetState() },
-                onAddDebt = { showNewDebt = true }
-            )
-        }
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar, Modifier.padding(bottom = BottomBarHeight)) },
     ) { padding ->
         Box(Modifier.padding(padding)) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(bottom = BottomBarHeight)) {
             // Cabeçalho verde: mês (ou título da aba Dívidas) e menu, fixos no topo.
             HeaderBar {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -366,7 +348,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 52.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 when (tab) {
@@ -524,6 +506,23 @@ private fun HomeScreenContent(vm: MainViewModel) {
             ) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
             }
+        AppBottomBar(
+            items = listOf(
+                NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
+                NavItem("Fixas", Icons.Outlined.EventRepeat, Icons.Filled.EventRepeat),
+                NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
+                NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
+                NavItem("Dívidas", Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet)
+            ),
+            selected = TAB_ORDER.indexOf(tab),
+            onSelect = { tab = TAB_ORDER[it] },
+            addOpen = addMenuOpen,
+            onAddOpenChange = { addMenuOpen = it },
+            onAddExpense = { showNew = true },
+            onAddIncome = { incomeSheet = IncomeSheetState() },
+            onAddDebt = { showNewDebt = true },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
         }
     }
 
