@@ -3,6 +3,7 @@
 package com.meusgastos.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -79,18 +80,6 @@ fun LazyListScope.fixedExpensesTab(
 
     item(key = "fx-summary") { FixedSummaryCard(month, total, paidTotal, dueTotal, items.count { it.paid != null }, items.size) }
 
-    item(key = "fx-new") {
-        OutlinedButton(
-            onClick = onNew,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text("Nova despesa fixa")
-        }
-    }
-
     if (items.isEmpty()) {
         item(key = "fx-empty") {
             Text(
@@ -102,7 +91,38 @@ fun LazyListScope.fixedExpensesTab(
         }
     }
     items(items, key = { "fx-${it.fixed.id}" }) { v ->
-        FixedRow(v, onPay = { onPay(v.fixed) }, onEdit = { onEdit(v.fixed) })
+        FixedRow(month, v, onPay = { onPay(v.fixed) }, onEdit = { onEdit(v.fixed) })
+    }
+    item(key = "fx-new") { NewFixedSlot(onNew) }
+}
+
+/** Espaço pontilhado no fim da lista: discreto, mas sempre à mão para cadastrar mais uma. */
+@Composable
+private fun NewFixedSlot(onClick: () -> Unit) {
+    val color = MaterialTheme.colorScheme.primary
+    val dash = MaterialTheme.colorScheme.outline
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .drawBehind {
+                drawRoundRect(
+                    color = dash,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 1.dp.toPx(),
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
+                    )
+                )
+            },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("Nova despesa fixa", color = color, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -133,7 +153,10 @@ private fun FixedSummaryCard(month: YearMonth, total: Long, paid: Long, due: Lon
                 LinearProgressIndicator(
                     progress = { if (count == 0) 0f else paidCount.toFloat() / count },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-                    gapSize = 0.dp
+                    color = PositiveColor,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                    gapSize = 0.dp,
+                    drawStopIndicator = {}
                 )
                 Row(Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
@@ -151,12 +174,18 @@ private fun FixedSummaryCard(month: YearMonth, total: Long, paid: Long, due: Lon
 }
 
 @Composable
-private fun FixedRow(v: FixedExpenseView, onPay: () -> Unit, onEdit: () -> Unit) {
+private fun FixedRow(month: YearMonth, v: FixedExpenseView, onPay: () -> Unit, onEdit: () -> Unit) {
     val f = v.fixed
+    // Situação do vencimento: só vale para o que ainda não foi pago.
+    val dueDate = month.atDay(f.dayOfMonth.coerceIn(1, month.lengthOfMonth()))
+    val daysLate = if (v.paid == null) (LocalDate.now().toEpochDay() - dueDate.toEpochDay()).toInt() else 0
+    val late = daysLate > 0
+    val dueToday = v.paid == null && daysLate == 0
+    val lateColor = MaterialTheme.colorScheme.error
     Card(
         onClick = onEdit,
         shape = RoundedCornerShape(14.dp),
-        border = CardBorder,
+        border = if (late) androidx.compose.foundation.BorderStroke(1.dp, lateColor.copy(alpha = 0.55f)) else CardBorder,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -164,8 +193,20 @@ private fun FixedRow(v: FixedExpenseView, onPay: () -> Unit, onEdit: () -> Unit)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(f.description, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (late) {
+                    Text(
+                        if (daysLate == 1) "Atrasada há 1 dia" else "Atrasada há $daysLate dias",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = lateColor
+                    )
+                }
                 Text(
-                    "Vence dia ${f.dayOfMonth} · ${f.category}",
+                    when {
+                        dueToday -> "Vence hoje · ${f.category}"
+                        late -> "Venceu dia ${f.dayOfMonth} · ${f.category}"
+                        else -> "Vence dia ${f.dayOfMonth} · ${f.category}"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -199,9 +240,9 @@ private fun FixedRow(v: FixedExpenseView, onPay: () -> Unit, onEdit: () -> Unit)
                     FilledTonalButton(
                         onClick = onPay,
                         shape = RoundedCornerShape(50),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) { Text("Pagar") }
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                        modifier = Modifier.height(40.dp)
+                    ) { Text("Pagar", fontWeight = FontWeight.SemiBold) }
                 }
             }
         }

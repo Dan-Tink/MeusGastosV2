@@ -1,6 +1,7 @@
 package com.meusgastos.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -103,6 +105,7 @@ fun AppBottomBar(
     onAddExpense: () -> Unit,
     onAddIncome: () -> Unit,
     onAddDebt: () -> Unit,
+    onAddFixed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     require(items.size == 5) { "A barra espera 5 abas" }
@@ -132,32 +135,19 @@ fun AppBottomBar(
             if (addOpen) 45f else 0f, label = "addRotation"
         )
         val gap = with(androidx.compose.ui.platform.LocalDensity.current) { (ringSize + 8.dp).roundToPx() }
-        val glowColor = MaterialTheme.colorScheme.primary
         Box(
             Modifier
                 .align(Alignment.TopCenter)
                 .size(ringSize)
-                .shadow(8.dp, CircleShape)
+                .shadow(6.dp, CircleShape)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface),
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 Modifier
                     .size(50.dp)
-                    // Brilho suave na cor do tema ao redor do botão.
-                    .drawBehind {
-                        val r = 34.dp.toPx()
-                        drawCircle(
-                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                                0.70f to glowColor.copy(alpha = 0.30f),
-                                1f to Color.Transparent,
-                                center = center,
-                                radius = r
-                            ),
-                            radius = r
-                        )
-                    }
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
                     .clickable(
@@ -199,18 +189,22 @@ fun AppBottomBar(
                             transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                         )
                     ) {
-                        // Três botões redondos em arco sobre o "+": os das pontas mais baixos, o do meio mais alto.
-                        Box(Modifier.width(300.dp).height(140.dp)) {
+                        // Quatro botões redondos em arco sobre o "+": os das pontas mais baixos.
+                        Box(Modifier.width(320.dp).height(140.dp)) {
                             AddOption("Ganho", Icons.Filled.Payments,
-                                Modifier.align(Alignment.BottomCenter).offset(x = (-88).dp, y = (-6).dp)) {
+                                Modifier.align(Alignment.BottomCenter).offset(x = (-112).dp, y = (-4).dp)) {
                                 onAddOpenChange(false); onAddIncome()
                             }
                             AddOption("Despesa", Icons.Filled.Receipt,
-                                Modifier.align(Alignment.BottomCenter).offset(y = (-50).dp)) {
+                                Modifier.align(Alignment.BottomCenter).offset(x = (-38).dp, y = (-50).dp)) {
                                 onAddOpenChange(false); onAddExpense()
                             }
+                            AddOption("Fixa", Icons.Filled.EventRepeat,
+                                Modifier.align(Alignment.BottomCenter).offset(x = 38.dp, y = (-50).dp)) {
+                                onAddOpenChange(false); onAddFixed()
+                            }
                             AddOption("Dívida", Icons.Filled.AccountBalanceWallet,
-                                Modifier.align(Alignment.BottomCenter).offset(x = 88.dp, y = (-6).dp)) {
+                                Modifier.align(Alignment.BottomCenter).offset(x = 112.dp, y = (-4).dp)) {
                                 onAddOpenChange(false); onAddDebt()
                             }
                         }

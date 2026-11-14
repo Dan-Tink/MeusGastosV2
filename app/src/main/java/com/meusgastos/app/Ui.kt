@@ -521,6 +521,10 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onAddExpense = { showNew = true },
             onAddIncome = { incomeSheet = IncomeSheetState() },
             onAddDebt = { showNewDebt = true },
+            onAddFixed = {
+                tab = TAB_FIXED
+                fixedSheet = FixedExpense(type = "", category = "", description = "", amountCents = 0, dayOfMonth = 1, startMonth = month.toString())
+            },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
         }

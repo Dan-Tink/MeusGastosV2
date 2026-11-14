@@ -180,8 +180,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         combine(fixedExpensesFlow, expensesFlow, month) { list, expenses, m ->
             val paid = expenses.filter { it.fixedId != null && inMonth(it.epochDay, m) }.groupBy { it.fixedId }
             list.filter { it.activeIn(m) }
-                .sortedWith(compareBy({ it.dayOfMonth }, { it.description.lowercase() }))
                 .map { FixedExpenseView(it, paid[it.id]?.firstOrNull()) }
+                // Pendentes primeiro (pelo vencimento); as pagas vão para o fim.
+                .sortedWith(compareBy({ it.paid != null }, { it.fixed.dayOfMonth }, { it.fixed.description.lowercase() }))
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val monthSummary: StateFlow<MonthSummary> = combine(expensesFlow, month) { all, m ->
