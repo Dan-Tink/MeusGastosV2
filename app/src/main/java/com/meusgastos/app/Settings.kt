@@ -73,6 +73,13 @@ class Settings(context: Context) {
             prefs.edit().putString("accent", value).apply()
         }
 
+    /** Os gastos recorrentes antigos já viraram despesas fixas? */
+    var recurringMigrated: Boolean
+        get() = prefs.getBoolean("recurringMigrated", false)
+        set(value) {
+            prefs.edit().putBoolean("recurringMigrated", value).apply()
+        }
+
     var lastCategory: String
         get() = prefs.getString("lastCategory", "") ?: ""
         set(value) {

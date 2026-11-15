@@ -189,9 +189,6 @@ abstract class ExpenseDao {
     @Query("SELECT * FROM incomes ORDER BY epochDay DESC, id DESC")
     abstract fun observeIncomes(): Flow<List<Income>>
 
-    @Query("SELECT * FROM recurring ORDER BY isIncome DESC, description")
-    abstract fun observeRecurring(): Flow<List<Recurring>>
-
     // ---- leitura única ----
     @Query("SELECT * FROM expenses")
     abstract suspend fun expensesOnce(): List<Expense>
@@ -299,19 +296,7 @@ abstract class ExpenseDao {
 
     // ---- recorrentes ----
     @Insert
-    abstract suspend fun insertRecurring(r: Recurring)
-
-    @Insert
     abstract suspend fun insertRecurringList(list: List<Recurring>)
-
-    @Update
-    abstract suspend fun updateRecurring(r: Recurring)
-
-    @Delete
-    abstract suspend fun deleteRecurring(r: Recurring)
-
-    @Query("UPDATE recurring SET lastGenerated = :value WHERE id = :id")
-    abstract suspend fun setLastGenerated(id: Long, value: String)
 
     // ---- tipos ----
     @Insert(onConflict = OnConflictStrategy.IGNORE)

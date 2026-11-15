@@ -52,11 +52,9 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Sell
@@ -152,7 +150,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
     val debts by vm.debts.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val accent by vm.accent.collectAsStateWithLifecycle()
-    val recurring by vm.recurring.collectAsStateWithLifecycle()
     val history by vm.allExpenses.collectAsStateWithLifecycle()
     val limit by vm.limitCents.collectAsStateWithLifecycle()
     val reminderOn by vm.reminderEnabled.collectAsStateWithLifecycle()
@@ -193,7 +190,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
     var payDebtId by remember { mutableStateOf<Long?>(null) }
     var debtsOpenFilter by rememberSaveable { mutableStateOf(true) }
     var showTheme by remember { mutableStateOf(false) }
-    var showRecurring by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showCapture by remember { mutableStateOf(false) }
     var editingPending by remember { mutableStateOf<PendingTx?>(null) }
@@ -221,7 +217,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
         }
     }
     val backupLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
             vm.exportBackup(uri) { ok ->
@@ -307,16 +303,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             if (tab == TAB_EXPENSES || tab == TAB_SUMMARY) {
                                 MenuRow("Tipos de despesa", Icons.Default.Sell) { menuOpen = false; showTypes = true }
                                 MenuRow("Categorias", Icons.Default.Category) { menuOpen = false; showCategories = true }
-                                MenuRow("Gastos recorrentes", Icons.Default.Repeat) { menuOpen = false; showRecurring = true }
-                                MenuRow("Copiar fixos do mês anterior", Icons.Default.ContentCopy) {
-                                    menuOpen = false
-                                    vm.copyFixedFromPreviousMonth { n ->
-                                        toast(
-                                            if (n > 0) "$n lançamento(s) copiado(s)."
-                                            else "Nada novo para copiar."
-                                        )
-                                    }
-                                }
                                 MenuRow("Captura por notificação", Icons.Default.NotificationsActive) {
                                     menuOpen = false; showCapture = true
                                 }
@@ -333,7 +319,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             }
                             MenuRow("Salvar backup", Icons.Default.Backup) {
                                 menuOpen = false
-                                backupLauncher.launch("meus-gastos-backup-${LocalDate.now()}.json")
+                                backupLauncher.launch("meus-gastos-backup-${LocalDate.now()}.zip")
                             }
                             MenuRow("Restaurar backup", Icons.Default.Restore) {
                                 menuOpen = false
@@ -711,17 +697,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onSaveFixed = { d, c, day, existing -> vm.saveFixedIncome(d, c, day, existing) },
             onEndFixed = { vm.endFixedIncome(it) },
             onDismiss = { incomeSheet = null }
-        )
-    }
-
-    if (showRecurring) {
-        RecurringSheet(
-            recurring = recurring,
-            types = types,
-            categories = categories,
-            onSave = { vm.saveRecurring(it) },
-            onDelete = { vm.deleteRecurring(it) },
-            onDismiss = { showRecurring = false }
         )
     }
 
