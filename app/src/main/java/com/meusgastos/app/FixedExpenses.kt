@@ -192,7 +192,7 @@ private fun FixedRow(month: YearMonth, v: FixedExpenseView, onPay: () -> Unit, o
             CategoryBadge(f.category, size = 44.dp, iconKey = f.icon)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(f.description, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(f.description.cleanLine(), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (late) {
                     Text(
                         if (daysLate == 1) "Atrasada há 1 dia" else "Atrasada há $daysLate dias",
@@ -283,7 +283,7 @@ fun PayFixedSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Pagar ${fixed.description}",
+                "Pagar ${fixed.description.cleanLine()}",
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleMedium,
@@ -333,7 +333,7 @@ fun FixedExpenseSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var desc by remember { mutableStateOf(editing?.description ?: "") }
+    var desc by remember { mutableStateOf(editing?.description?.cleanLine() ?: "") }
     var amount by remember { mutableStateOf(editing?.amountCents?.toPlain() ?: "") }
     var dayText by remember { mutableStateOf((editing?.dayOfMonth ?: 1).toString()) }
     var type by remember {
@@ -433,7 +433,7 @@ fun FixedExpenseSheet(
                             id = editing?.id ?: 0L,
                             type = type,
                             category = category,
-                            description = desc.trim(),
+                            description = desc.cleanLine(),
                             amountCents = cents ?: 0L,
                             dayOfMonth = day ?: 1,
                             startMonth = editing?.startMonth ?: month.toString(),

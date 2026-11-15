@@ -368,7 +368,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             dao.insert(
                 Expense(
                     type = f.type,
-                    description = f.description,
+                    description = f.description.cleanLine(),
                     amountCents = amountCents,
                     epochDay = epochDay,
                     category = f.category,
