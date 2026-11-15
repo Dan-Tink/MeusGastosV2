@@ -228,7 +228,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // No mês atual, compara com o mesmo trecho do mês anterior (até o dia de hoje).
         val upTo: Int? =
             if (m == YearMonth.now()) minOf(LocalDate.now().dayOfMonth, prev.lengthOfMonth()) else null
-        val prevSpent = expenses
+        // Mês que ainda não começou: comparar com um mês inteiro enganaria (sempre "gastou menos").
+        val future = m > YearMonth.now()
+        val prevSpent = if (future) 0L else expenses
             .filter { e ->
                 val d = LocalDate.ofEpochDay(e.epochDay)
                 YearMonth.from(d) == prev && (upTo == null || d.dayOfMonth <= upTo)

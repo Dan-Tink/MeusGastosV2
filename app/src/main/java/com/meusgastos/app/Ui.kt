@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -171,6 +172,19 @@ private fun HomeScreenContent(vm: MainViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(TAB_SUMMARY) }
     var incomeSheet by remember { mutableStateOf<IncomeSheetState?>(null) }
     var addMenuOpen by remember { mutableStateOf(false) }
+    // A faixa do relógio/bateria acompanha o escurecimento do menu "+", sem degrau de cor.
+    run {
+        val view = androidx.compose.ui.platform.LocalView.current
+        val header = LocalAppColors.current.headerBackground
+        if (!view.isInEditMode) {
+            androidx.compose.runtime.SideEffect {
+                val window = (view.context as? android.app.Activity)?.window
+                    ?: return@SideEffect
+                val c = if (addMenuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, 0.45f) else header
+                window.statusBarColor = c.toArgb()
+            }
+        }
+    }
     var showNewDebt by remember { mutableStateOf(false) }
     /** Folha de despesa fixa: null = fechada; id 0 = nova; senão a que está sendo editada. */
     var fixedSheet by remember { mutableStateOf<FixedExpense?>(null) }
@@ -340,6 +354,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
                         o = overview,
                         limit = limit.takeIf { it > 0 },
                         prevLabel = month.minusMonths(1).monthName(),
+                        fixedPending = fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
                         onIncomeClick = { tab = TAB_INCOMES }
                     )
                 }

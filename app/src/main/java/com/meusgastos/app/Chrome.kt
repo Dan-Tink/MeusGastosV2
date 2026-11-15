@@ -1,7 +1,6 @@
 package com.meusgastos.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,6 +118,7 @@ fun AppBottomBar(
     // O centro do botão fica um pouco acima da borda da barra; a barra sobe em volta dele.
     val fabTop = FabLift - FabRise - fabSize / 2
     val barShape = remember { BumpBarShape(FabLift, FabBumpRadius, FabRise, 14.dp) }
+    val lineColor = MaterialTheme.colorScheme.outlineVariant
     Box(modifier.fillMaxWidth().height(BottomBarHeight + FabLift)) {
         // Fundo da barra: um só contorno, com a saliência redonda no meio onde o "+" se encaixa.
         Box(
@@ -126,7 +126,14 @@ fun AppBottomBar(
                 .matchParentSize()
                 .shadow(10.dp, barShape)
                 .background(MaterialTheme.colorScheme.surface, barShape)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, barShape)
+                .drawBehind {
+                    // Só a linha de cima (com a saliência): laterais e base ficam sem moldura.
+                    drawPath(
+                        barShape.topContour(size, this),
+                        color = lineColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                    )
+                }
         )
         Row(
             Modifier
@@ -493,6 +500,18 @@ private class BumpBarShape(
         layoutDirection: androidx.compose.ui.unit.LayoutDirection,
         density: androidx.compose.ui.unit.Density
     ): androidx.compose.ui.graphics.Outline {
+        val p = topContour(size, density)
+        p.lineTo(size.width, size.height)
+        p.lineTo(0f, size.height)
+        p.close()
+        return androidx.compose.ui.graphics.Outline.Generic(p)
+    }
+
+    /** Só a linha de cima, da borda esquerda à direita, passando pela saliência (sem fechar). */
+    fun topContour(
+        size: androidx.compose.ui.geometry.Size,
+        density: androidx.compose.ui.unit.Density
+    ): androidx.compose.ui.graphics.Path {
         val ly = with(density) { lineY.toPx() }
         val r = with(density) { radius.toPx() }
         val h = with(density) { rise.toPx() }
@@ -526,9 +545,6 @@ private class BumpBarShape(
             rightStart, 90f - rightStart, false
         )
         p.lineTo(size.width, ly)
-        p.lineTo(size.width, size.height)
-        p.lineTo(0f, size.height)
-        p.close()
-        return androidx.compose.ui.graphics.Outline.Generic(p)
+        return p
     }
 }
