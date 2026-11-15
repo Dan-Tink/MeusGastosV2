@@ -189,9 +189,6 @@ abstract class ExpenseDao {
     @Query("SELECT * FROM incomes ORDER BY epochDay DESC, id DESC")
     abstract fun observeIncomes(): Flow<List<Income>>
 
-    @Query("SELECT * FROM recurring ORDER BY isIncome DESC, description")
-    abstract fun observeRecurring(): Flow<List<Recurring>>
-
     // ---- leitura única ----
     @Query("SELECT * FROM expenses")
     abstract suspend fun expensesOnce(): List<Expense>
@@ -215,9 +212,6 @@ abstract class ExpenseDao {
     @Query("SELECT * FROM fixed_expenses")
     abstract suspend fun fixedExpensesOnce(): List<FixedExpense>
 
-    @Query("SELECT * FROM fixed_expenses WHERE id = :id")
-    abstract suspend fun fixedExpenseById(id: Long): FixedExpense?
-
     @Insert
     abstract suspend fun insertFixedExpense(f: FixedExpense): Long
 
@@ -239,18 +233,6 @@ abstract class ExpenseDao {
     @Query("UPDATE fixed_expenses SET category = :newName WHERE category = :oldName")
     abstract suspend fun renameCategoryInFixedExpenses(oldName: String, newName: String)
 
-    /** Muda a despesa fixa a partir do mês [from]; os meses anteriores ficam como estavam. */
-    @Transaction
-    open suspend fun reviseFixedExpense(old: FixedExpense, updated: FixedExpense, from: YearMonth) {
-        val start = runCatching { YearMonth.parse(old.startMonth) }.getOrNull() ?: from
-        if (!from.isAfter(start)) {
-            updateFixedExpense(updated.copy(id = old.id, startMonth = old.startMonth, endMonth = old.endMonth))
-        } else {
-            updateFixedExpense(old.copy(endMonth = from.minusMonths(1).toString()))
-            insertFixedExpense(updated.copy(id = 0, startMonth = from.toString(), endMonth = old.endMonth))
-        }
-    }
-
     /** Para a despesa fixa a partir do mês [from]; os meses anteriores continuam contando. */
     @Transaction
     open suspend fun endFixedExpense(old: FixedExpense, from: YearMonth) {
@@ -258,6 +240,10 @@ abstract class ExpenseDao {
         if (!from.isAfter(start)) deleteFixedExpense(old)
         else updateFixedExpense(old.copy(endMonth = from.minusMonths(1).toString()))
     }
+
+    /** Quantos pagamentos desta despesa fixa existem no intervalo de dias (um mês). */
+    @Query("SELECT COUNT(*) FROM expenses WHERE fixedId = :fixedId AND epochDay BETWEEN :from AND :to")
+    abstract suspend fun countPaidFixed(fixedId: Long, from: Long, to: Long): Int
 
     @Query("SELECT COUNT(*) FROM expenses WHERE receipt = :name")
     abstract suspend fun countByReceipt(name: String): Int
@@ -310,19 +296,7 @@ abstract class ExpenseDao {
 
     // ---- recorrentes ----
     @Insert
-    abstract suspend fun insertRecurring(r: Recurring)
-
-    @Insert
     abstract suspend fun insertRecurringList(list: List<Recurring>)
-
-    @Update
-    abstract suspend fun updateRecurring(r: Recurring)
-
-    @Delete
-    abstract suspend fun deleteRecurring(r: Recurring)
-
-    @Query("UPDATE recurring SET lastGenerated = :value WHERE id = :id")
-    abstract suspend fun setLastGenerated(id: Long, value: String)
 
     // ---- tipos ----
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -654,7 +628,7 @@ abstract class ExpenseDao {
         insertDebts(debts)
         insertDebtPayments(debtPayments)
         if (pending != null) insertPendingList(pending.map { it.copy(id = 0) })
-        if (fixedExpenses != null) insertFixedExpenses(fixedExpenses.map { it.copy(id = 0) })
+        if (fixedExpenses != null) insertFixedExpenses(fixedExpenses)
     }
 }
 

@@ -12,10 +12,28 @@ object Receipts {
     private fun dir(context: Context): File =
         File(context.filesDir, "comprovantes").also { it.mkdirs() }
 
-    private fun file(context: Context, name: String): File = File(dir(context), name)
+    /** Único formato de nome que o app gera; qualquer outro (ex.: "../x" vindo de um backup) é recusado. */
+    private val SafeName = Regex("comp_\\d+\\.(jpg|png|pdf)")
+
+    fun isSafeName(name: String?): Boolean = name != null && SafeName.matches(name)
+
+    private fun file(context: Context, name: String): File {
+        require(isSafeName(name)) { "nome de comprovante inválido" }
+        return File(dir(context), name)
+    }
+
+    /** O arquivo do comprovante, se o nome for válido e ele existir. */
+    fun fileIfExists(context: Context, name: String): File? =
+        if (isSafeName(name)) file(context, name).takeIf { it.exists() } else null
+
+    /** Move um arquivo da restauração para a pasta dos comprovantes (só nomes válidos). */
+    fun importFile(context: Context, source: File) {
+        if (!isSafeName(source.name)) return
+        source.copyTo(file(context, source.name), overwrite = true)
+    }
 
     fun exists(context: Context, name: String?): Boolean =
-        name != null && file(context, name).exists()
+        isSafeName(name) && file(context, name!!).exists()
 
     fun uriFor(context: Context, name: String): Uri =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file(context, name))
@@ -47,7 +65,7 @@ object Receipts {
     }
 
     fun delete(context: Context, name: String?) {
-        if (name != null) file(context, name).delete()
+        if (isSafeName(name)) file(context, name!!).delete()
     }
 
     /** Abre o comprovante no visualizador do aparelho. Retorna false se não deu para abrir. */

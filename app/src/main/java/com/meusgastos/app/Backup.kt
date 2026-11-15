@@ -7,7 +7,14 @@ import java.time.YearMonth
 
 private fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 
-private fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+/**
+ * Células que começam com = + - @ viram fórmula no Excel/Planilhas. Como a descrição pode vir de
+ * uma notificação (ex.: o nome de quem fez um Pix), um apóstrofo na frente impede a execução.
+ */
+private fun csvCell(value: String): String {
+    val safe = if (value.isNotEmpty() && value[0] in "=+-@\t\r") "'$value" else value
+    return "\"" + safe.replace("\"", "\"\"") + "\""
+}
 
 /** Planilha CSV (abre direto no Excel / Google Planilhas). */
 suspend fun buildCsv(dao: ExpenseDao): String {
@@ -173,6 +180,7 @@ suspend fun buildBackupJson(dao: ExpenseDao, settings: Settings): String {
         "fixedExpenses",
         JSONArray(fixedExpenses.map {
             JSONObject()
+                .put("id", it.id)
                 .put("type", it.type)
                 .put("category", it.category)
                 .put("description", it.description)
@@ -332,6 +340,8 @@ suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): 
         }
         val fixedExpenses = root.optJSONArray("fixedExpenses")?.objects()?.map {
             FixedExpense(
+                // O id liga cada gasto pago à sua despesa fixa; backups antigos não o tinham.
+                id = it.optLong("id", 0L),
                 type = it.getString("type"),
                 category = it.getString("category"),
                 description = it.getString("description"),
@@ -342,8 +352,16 @@ suspend fun restoreFromJson(dao: ExpenseDao, settings: Settings, text: String): 
                 icon = if (it.isNull("icon")) null else it.getString("icon")
             )
         }
+        // Sem ids no backup, não dá para saber qual fixa cada gasto pagou: solta o vínculo em vez de errar.
+        val fixedIdsKept = fixedExpenses != null && fixedExpenses.all { it.id > 0 }
+        val safeExpenses = expenses.map { e ->
+            e.copy(
+                receipt = e.receipt?.takeIf { Receipts.isSafeName(it) },
+                fixedId = if (fixedIdsKept) e.fixedId else null
+            )
+        }
         dao.replaceAll(
-            types, categories, expenses, incomes, recurring, fixedIncomes, debts, debtPayments,
+            types, categories, safeExpenses, incomes, recurring, fixedIncomes, debts, debtPayments,
             pending, fixedExpenses
         )
         root.optJSONObject("settings")?.let { runCatching { settings.applyJson(it) } }

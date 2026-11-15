@@ -39,6 +39,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Painel do mês (aba Resumo): o saldo em destaque, de onde veio e para onde foi o dinheiro,
@@ -49,6 +50,7 @@ fun OverviewCard(
     o: Overview,
     limit: Long?,
     prevLabel: String,
+    fixedPending: Long = 0,
     onIncomeClick: () -> Unit
 ) {
     var hidden by rememberSaveable { mutableStateOf(false) }
@@ -90,7 +92,8 @@ fun OverviewCard(
                         fontWeight = FontWeight.Bold,
                         color = balanceColor,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        softWrap = false,
+                        overflow = TextOverflow.Clip
                     )
                 }
                 IconButton(onClick = { hidden = !hidden }) {
@@ -112,6 +115,14 @@ fun OverviewCard(
                     if (hidden) "Saldo já desconta pagamentos de dívidas" else "Saldo já desconta ${o.debtPaid.toMoney()} pagos em dívidas",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (fixedPending > 0) {
+                Text(
+                    if (hidden) "Ainda há fixas a pagar" else "Fixas a pagar: ${fixedPending.toMoney()} (ainda não descontadas do saldo)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WarningColor
                 )
             }
 
@@ -204,16 +215,30 @@ private fun Tile(
             }
         }
         Spacer(Modifier.height(4.dp))
-        Text(
+        ShrinkMoneyText(
             if (hidden) "••••" else cents.toMoney(),
-            style = MaterialTheme.typography.titleSmall,
-            fontFamily = MoneyFont,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            style = MaterialTheme.typography.titleSmall
         )
     }
+}
+
+/** Dinheiro em uma linha só: se não couber, a fonte diminui em vez de cortar os centavos com "…". */
+@Composable
+private fun ShrinkMoneyText(text: String, style: androidx.compose.ui.text.TextStyle) {
+    var size by androidx.compose.runtime.remember(text) { mutableStateOf(style.fontSize) }
+    Text(
+        text,
+        style = style,
+        fontSize = size,
+        fontFamily = MoneyFont,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        softWrap = false,
+        onTextLayout = { r ->
+            if (r.hasVisualOverflow && size.value > 9f) size = (size.value - 1f).sp
+        }
+    )
 }
 
 /**

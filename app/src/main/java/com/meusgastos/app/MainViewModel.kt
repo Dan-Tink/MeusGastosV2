@@ -118,9 +118,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val categories: StateFlow<List<Category>> = dao.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val recurring: StateFlow<List<Recurring>> = dao.observeRecurring()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     /** Lançamentos detectados nas notificações dos bancos, esperando confirmação. */
     val pending: StateFlow<List<PendingTx>> = dao.observePending()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -228,7 +225,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // No mês atual, compara com o mesmo trecho do mês anterior (até o dia de hoje).
         val upTo: Int? =
             if (m == YearMonth.now()) minOf(LocalDate.now().dayOfMonth, prev.lengthOfMonth()) else null
-        val prevSpent = expenses
+        // Mês que ainda não começou: comparar com um mês inteiro enganaria (sempre "gastou menos").
+        val future = m > YearMonth.now()
+        val prevSpent = if (future) 0L else expenses
             .filter { e ->
                 val d = LocalDate.ofEpochDay(e.epochDay)
                 YearMonth.from(d) == prev && (upTo == null || d.dayOfMonth <= upTo)
@@ -286,6 +285,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     init {
         if (settings.reminderEnabled) Reminder.schedule(app, settings.reminderHour, replace = false)
+        migrateRecurringToFixed()
     }
 
     // ---------------------------------------------------------------- busca e filtros
@@ -365,7 +365,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** "Pagar": lança o gasto de verdade, ligado à despesa fixa para a aba saber que está paga. */
     fun payFixedExpense(f: FixedExpense, amountCents: Long, epochDay: Long) {
         viewModelScope.launch {
-            dao.insert(
+            // Um pagamento por mês: toque duplo ou repetido não lança duas vezes.
+            payLock.withLock {
+                val ym = YearMonth.from(LocalDate.ofEpochDay(epochDay))
+                if (dao.countPaidFixed(f.id, ym.atDay(1).toEpochDay(), ym.atEndOfMonth().toEpochDay()) > 0) {
+                    return@withLock
+                }
+                dao.insert(
                 Expense(
                     type = f.type,
                     description = f.description.cleanLine(),
@@ -375,9 +381,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     icon = f.icon,
                     fixedId = f.id
                 )
-            )
+                )
+            }
         }
     }
+
+    private val payLock = Mutex()
 
     fun delete(e: Expense) {
         viewModelScope.launch {
@@ -392,11 +401,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun deleteScoped(e: Expense, scope: GroupScope) {
         viewModelScope.launch {
             val group = e.groupId
+            val from = if (scope == GroupScope.ALL) 0 else e.installmentNo
+            // Comprovantes das parcelas apagadas: o arquivo só sai se nenhum gasto restante o usa.
+            val receipts = if (group == null || scope == GroupScope.ONE) listOfNotNull(e.receipt)
+            else dao.expensesOnce().filter { it.groupId == group && it.installmentNo >= from }
+                .mapNotNull { it.receipt }
             if (group == null || scope == GroupScope.ONE) {
                 dao.delete(e)
             } else {
-                dao.deleteGroupFrom(group, if (scope == GroupScope.ALL) 0 else e.installmentNo)
+                dao.deleteGroupFrom(group, from)
             }
+            receipts.distinct().forEach { if (dao.countByReceipt(it) == 0) Receipts.delete(app, it) }
         }
     }
 
@@ -513,91 +528,39 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------------------------------------------------------------- recorrentes
-
-    fun saveRecurring(r: Recurring) {
-        viewModelScope.launch {
-            if (r.id == 0L) {
-                // Começa no mês atual: o lançamento deste mês é criado logo em seguida.
-                dao.insertRecurring(r.copy(lastGenerated = YearMonth.now().minusMonths(1).toString()))
-            } else {
-                dao.updateRecurring(r)
-            }
-            runRecurring()
-        }
-    }
-
-    fun deleteRecurring(r: Recurring) {
-        viewModelScope.launch { dao.deleteRecurring(r) }
-    }
-
-    /** Lança os gastos e ganhos recorrentes dos meses que ainda não foram lançados. */
-    fun generateRecurring() {
-        viewModelScope.launch { runRecurring() }
-    }
+    // ---------------------------------------------------------------- recorrentes antigos
 
     private val recurringLock = Mutex()
 
-    private suspend fun runRecurring() = recurringLock.withLock {
-        val now = YearMonth.now()
-        for (r in dao.recurringOnce()) {
-            val last = runCatching { YearMonth.parse(r.lastGenerated) }.getOrNull() ?: now.minusMonths(1)
-            var m = last.plusMonths(1)
-            var guard = 0
-            while (!m.isAfter(now) && guard < 24) {
-                val date = dayIn(m, r.dayOfMonth)
-                if (r.isIncome) {
-                    dao.insertIncome(
-                        Income(
-                            description = r.description,
-                            amountCents = r.amountCents,
-                            epochDay = date.toEpochDay()
-                        )
-                    )
-                } else {
-                    dao.insert(
-                        Expense(
-                            type = r.type,
-                            category = r.category,
-                            description = r.description,
-                            amountCents = r.amountCents,
-                            epochDay = date.toEpochDay()
-                        )
-                    )
-                }
-                m = m.plusMonths(1)
-                guard++
-            }
-            if (last != now) dao.setLastGenerated(r.id, now.toString())
-        }
-    }
-
-    /** Copia os gastos fixos do mês anterior para o mês exibido, sem duplicar. */
-    fun copyFixedFromPreviousMonth(onDone: (Int) -> Unit) {
+    /**
+     * Os "gastos recorrentes" antigos deixaram de existir: o que ainda estava cadastrado vira
+     * despesa fixa (aba Fixas, com o botão Pagar), valendo do mês atual. Roda uma vez e não duplica.
+     */
+    private fun migrateRecurringToFixed() {
         viewModelScope.launch {
-            val target = month.value
-            val prev = target.minusMonths(1)
-            val fixedNames = dao.typesOnce().filter { it.fixed }.map { it.name }.toSet()
-            val expenses = dao.expensesOnce()
-            val currentExpenses = expenses.filter { inMonth(it.epochDay, target) }
-
-            val newExpenses = expenses
-                .filter { inMonth(it.epochDay, prev) && it.type in fixedNames }
-                .filter { it.groupId == null }
-                .filter { e ->
-                    currentExpenses.none {
-                        it.type == e.type &&
-                            it.amountCents == e.amountCents &&
-                            it.description.equals(e.description, ignoreCase = true)
+            recurringLock.withLock {
+                if (settings.recurringMigrated) return@withLock
+                val existing = dao.fixedExpensesOnce()
+                val now = YearMonth.now().toString()
+                dao.recurringOnce().filter { !it.isIncome }.forEach { r ->
+                    val dup = existing.any {
+                        it.description.equals(r.description, ignoreCase = true) && it.amountCents == r.amountCents
+                    }
+                    if (!dup) {
+                        dao.insertFixedExpense(
+                            FixedExpense(
+                                type = r.type,
+                                category = r.category,
+                                description = r.description,
+                                amountCents = r.amountCents,
+                                dayOfMonth = r.dayOfMonth,
+                                startMonth = now
+                            )
+                        )
                     }
                 }
-                .map { e ->
-                    val day = LocalDate.ofEpochDay(e.epochDay).dayOfMonth
-                    e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay(), receipt = null)
-                }
-
-            if (newExpenses.isNotEmpty()) dao.insertExpenses(newExpenses)
-            onDone(newExpenses.size)
+                settings.recurringMigrated = true
+            }
         }
     }
 
@@ -700,8 +663,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     val text = buildBackupJson(dao, settings)
+                    val receipts = dao.expensesOnce().mapNotNull { it.receipt }
                     val out = app.contentResolver.openOutputStream(uri) ?: error("sem saída")
-                    out.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                    out.use { BackupZip.write(app, it, text, receipts) }
                 }.isSuccess
             }
             onDone(ok)
@@ -713,11 +677,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     val input = app.contentResolver.openInputStream(uri) ?: error("sem entrada")
-                    val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    restoreFromJson(dao, settings, text)
+                    val parsed = input.use { BackupZip.read(app, it) }
+                    val restored = try {
+                        restoreFromJson(dao, settings, parsed.json)
+                    } catch (e: Exception) {
+                        false
+                    }
+                    BackupZip.finish(app, parsed, restored)
+                    restored
                 }.getOrDefault(false)
             }
-            if (ok) reloadSettings()
+            if (ok) {
+                // Backup antigo pode trazer gastos recorrentes: viram fixas (sem duplicar).
+                settings.recurringMigrated = false
+                migrateRecurringToFixed()
+                reloadSettings()
+            }
             onDone(ok)
         }
     }
@@ -737,3 +712,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         else Reminder.cancel(app)
     }
 }
+
+/** Tamanho máximo aceito para um arquivo de backup. */
+private const val MaxBackupBytes = 20 * 1024 * 1024

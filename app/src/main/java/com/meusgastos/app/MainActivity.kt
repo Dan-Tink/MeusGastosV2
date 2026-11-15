@@ -26,10 +26,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    override fun onStart() {
-        super.onStart()
-        // Lança os gastos e ganhos recorrentes que estiverem pendentes.
-        vm.generateRecurring()
-    }
 }
