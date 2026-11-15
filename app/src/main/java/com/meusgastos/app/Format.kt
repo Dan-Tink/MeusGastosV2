@@ -62,4 +62,9 @@ fun Expense.title(): String =
 fun String.norm(): String =
     Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(AccentMarks, "")
 
+/** Texto em uma linha só: quebras de linha e espaços repetidos viram um espaço (e sem pontas). */
+fun String.cleanLine(): String = replace(LineJunk, " ").trim()
+
+private val LineJunk = Regex("[\\s\\u00A0\\u200B]+")
+
 private val AccentMarks = Regex("\\p{Mn}+")
