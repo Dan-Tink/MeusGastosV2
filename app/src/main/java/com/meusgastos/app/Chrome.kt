@@ -87,7 +87,13 @@ class NavItem(
 val BottomBarHeight = 72.dp
 
 /** Quanto o botão "+" (com o anel) se estende acima da barra. */
-private val FabLift = 52.dp
+private val FabLift = 56.dp
+
+/** Altura do centro do botão "+" acima da borda de cima da barra. */
+private val FabRise = 20.dp
+
+/** Raio da saliência redonda da barra em volta do botão. */
+private val FabBumpRadius = 34.dp
 
 /**
  * Barra inferior com cinco abas. O botão "+" fica acima da aba do meio (Resumo), num anel da
@@ -109,66 +115,60 @@ fun AppBottomBar(
     modifier: Modifier = Modifier
 ) {
     require(items.size == 5) { "A barra espera 5 abas" }
+    val fabSize = 50.dp
+    // O centro do botão fica um pouco acima da borda da barra; a barra sobe em volta dele.
+    val fabTop = FabLift - FabRise - fabSize / 2
+    val barShape = remember { BumpBarShape(FabLift, FabBumpRadius, FabRise, 14.dp) }
     Box(modifier.fillMaxWidth().height(BottomBarHeight + FabLift)) {
-        Surface(
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 10.dp
+        // Fundo da barra: um só contorno, com a saliência redonda no meio onde o "+" se encaixa.
+        Box(
+            Modifier
+                .matchParentSize()
+                .shadow(10.dp, barShape)
+                .background(MaterialTheme.colorScheme.surface, barShape)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, barShape)
+        )
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(BottomBarHeight)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(BottomBarHeight - 1.dp)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items.forEachIndexed { i, item -> NavTab(item, selected == i) { onSelect(i) } }
-                }
-            }
+            items.forEachIndexed { i, item -> NavTab(item, selected == i) { onSelect(i) } }
         }
 
-        // Anel (da cor da barra) com o botão redondo dentro, apoiado na borda de cima da barra.
-        val ringSize = 60.dp
         val rotation by androidx.compose.animation.core.animateFloatAsState(
             if (addOpen) 45f else 0f, label = "addRotation"
         )
-        val gap = with(androidx.compose.ui.platform.LocalDensity.current) { (ringSize + 8.dp).roundToPx() }
+        val gap = with(androidx.compose.ui.platform.LocalDensity.current) { (fabSize + 8.dp).roundToPx() }
         Box(
             Modifier
                 .align(Alignment.TopCenter)
-                .size(ringSize)
-                .shadow(6.dp, CircleShape)
+                .offset(y = fabTop)
+                .size(fabSize)
+                .shadow(4.dp, CircleShape)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = if (addOpen) "Fechar opções" else "Adicionar",
+                    onClick = { onAddOpenChange(!addOpen) }
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                Modifier
-                    .size(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(
-                        role = Role.Button,
-                        onClickLabel = if (addOpen) "Fechar opções" else "Adicionar",
-                        onClick = { onAddOpenChange(!addOpen) }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = if (addOpen) "Fechar opções" else "Adicionar",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .rotate(rotation)
-                )
-            }
+            Icon(
+                Icons.Default.Add,
+                contentDescription = if (addOpen) "Fechar opções" else "Adicionar",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .size(28.dp)
+                    .rotate(rotation)
+            )
         }
-        // O menu fica ancorado no anel; o popup fica na tela até a animação de saída terminar.
-        Box(Modifier.align(Alignment.TopCenter).size(ringSize)) {
+        // O menu fica ancorado no botão; o popup fica na tela até a animação de saída terminar.
+        Box(Modifier.align(Alignment.TopCenter).offset(y = fabTop).size(fabSize)) {
             val menuState = remember { androidx.compose.animation.core.MutableTransitionState(false) }
             menuState.targetState = addOpen
             if (menuState.currentState || menuState.targetState) {
@@ -473,5 +473,62 @@ fun AppearanceSheet(
                 }
             }
         }
+    }
+}
+
+
+/**
+ * Contorno da barra inferior: uma linha reta com uma saliência redonda no meio (para o botão "+"),
+ * ligada à linha por duas curvas suaves. [lineY] é onde fica a borda de cima da barra, contado do
+ * topo da área; [rise] é quanto o centro da saliência fica acima dessa borda.
+ */
+private class BumpBarShape(
+    private val lineY: androidx.compose.ui.unit.Dp,
+    private val radius: androidx.compose.ui.unit.Dp,
+    private val rise: androidx.compose.ui.unit.Dp,
+    private val fillet: androidx.compose.ui.unit.Dp
+) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density
+    ): androidx.compose.ui.graphics.Outline {
+        val ly = with(density) { lineY.toPx() }
+        val r = with(density) { radius.toPx() }
+        val h = with(density) { rise.toPx() }
+        val f = with(density) { fillet.toPx() }
+        val cx = size.width / 2f
+        // Curva de ligação: círculo de raio f encostando na linha reta e na saliência.
+        val dx = kotlin.math.sqrt(((r + f) * (r + f) - (h - f) * (h - f)).toDouble()).toFloat()
+        val deg = 180.0 / Math.PI
+        val fillAngle = (kotlin.math.atan2((f - h).toDouble(), dx.toDouble()) * deg).toFloat()
+        val bumpLeft = (kotlin.math.atan2((h - f).toDouble(), (-dx).toDouble()) * deg).toFloat()
+        val bumpRight = (kotlin.math.atan2((h - f).toDouble(), dx.toDouble()) * deg).toFloat()
+        // Normalizado para 0..360 para o giro (de volta à linha reta) ser anti-horário, como o da esquerda.
+        val rightStart = ((kotlin.math.atan2((f - h).toDouble(), (-dx).toDouble()) * deg).toFloat() + 360f) % 360f
+
+        val p = androidx.compose.ui.graphics.Path()
+        p.moveTo(0f, ly)
+        p.lineTo(cx - dx, ly)
+        // Curva da esquerda (côncava): de baixo (90°) até encontrar a saliência.
+        p.arcTo(
+            androidx.compose.ui.geometry.Rect(cx - dx - f, ly - 2 * f, cx - dx + f, ly),
+            90f, fillAngle - 90f, false
+        )
+        // Saliência: por cima, da esquerda para a direita.
+        p.arcTo(
+            androidx.compose.ui.geometry.Rect(cx - r, ly - h - r, cx + r, ly - h + r),
+            bumpLeft, (bumpRight + 360f) - bumpLeft, false
+        )
+        // Curva da direita (côncava): da saliência até a linha reta.
+        p.arcTo(
+            androidx.compose.ui.geometry.Rect(cx + dx - f, ly - 2 * f, cx + dx + f, ly),
+            rightStart, 90f - rightStart, false
+        )
+        p.lineTo(size.width, ly)
+        p.lineTo(size.width, size.height)
+        p.lineTo(0f, size.height)
+        p.close()
+        return androidx.compose.ui.graphics.Outline.Generic(p)
     }
 }
