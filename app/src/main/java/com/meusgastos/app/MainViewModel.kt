@@ -367,7 +367,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** "Pagar": lança o gasto de verdade, ligado à despesa fixa para a aba saber que está paga. */
     fun payFixedExpense(f: FixedExpense, amountCents: Long, epochDay: Long) {
         viewModelScope.launch {
-            dao.insert(
+            // Um pagamento por mês: toque duplo ou repetido não lança duas vezes.
+            payLock.withLock {
+                val ym = YearMonth.from(LocalDate.ofEpochDay(epochDay))
+                if (dao.countPaidFixed(f.id, ym.atDay(1).toEpochDay(), ym.atEndOfMonth().toEpochDay()) > 0) {
+                    return@withLock
+                }
+                dao.insert(
                 Expense(
                     type = f.type,
                     description = f.description.cleanLine(),
@@ -377,9 +383,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     icon = f.icon,
                     fixedId = f.id
                 )
-            )
+                )
+            }
         }
     }
+
+    private val payLock = Mutex()
 
     fun delete(e: Expense) {
         viewModelScope.launch {
@@ -394,11 +403,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun deleteScoped(e: Expense, scope: GroupScope) {
         viewModelScope.launch {
             val group = e.groupId
+            val from = if (scope == GroupScope.ALL) 0 else e.installmentNo
+            // Comprovantes das parcelas apagadas: o arquivo só sai se nenhum gasto restante o usa.
+            val receipts = if (group == null || scope == GroupScope.ONE) listOfNotNull(e.receipt)
+            else dao.expensesOnce().filter { it.groupId == group && it.installmentNo >= from }
+                .mapNotNull { it.receipt }
             if (group == null || scope == GroupScope.ONE) {
                 dao.delete(e)
             } else {
-                dao.deleteGroupFrom(group, if (scope == GroupScope.ALL) 0 else e.installmentNo)
+                dao.deleteGroupFrom(group, from)
             }
+            receipts.distinct().forEach { if (dao.countByReceipt(it) == 0) Receipts.delete(app, it) }
         }
     }
 
@@ -595,7 +610,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 .map { e ->
                     val day = LocalDate.ofEpochDay(e.epochDay).dayOfMonth
-                    e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay(), receipt = null)
+                    e.copy(id = 0, epochDay = dayIn(target, day).toEpochDay(), receipt = null, fixedId = null)
                 }
 
             if (newExpenses.isNotEmpty()) dao.insertExpenses(newExpenses)
@@ -715,7 +730,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     val input = app.contentResolver.openInputStream(uri) ?: error("sem entrada")
-                    val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    // Teto de 20 MB: um arquivo gigante ou errado não pode estourar a memória.
+                    val bytes = input.use { it.readNBytes(MaxBackupBytes + 1) }
+                    if (bytes.size > MaxBackupBytes) error("arquivo grande demais")
+                    val text = String(bytes, Charsets.UTF_8)
                     restoreFromJson(dao, settings, text)
                 }.getOrDefault(false)
             }
@@ -739,3 +757,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         else Reminder.cancel(app)
     }
 }
+
+/** Tamanho máximo aceito para um arquivo de backup. */
+private const val MaxBackupBytes = 20 * 1024 * 1024

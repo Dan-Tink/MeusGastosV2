@@ -29,7 +29,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.activity.compose.rememberLauncherForActivityResult

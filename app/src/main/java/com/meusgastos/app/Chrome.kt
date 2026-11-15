@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
