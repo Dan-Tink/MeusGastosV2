@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 // ---------------------------------------------------------------------------------------
 // Peças da identidade visual que se repetem nas abas: cabeçalho verde, barra inferior com o
