@@ -63,6 +63,9 @@ fun String.norm(): String =
     Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(AccentMarks, "")
 
 /** Texto em uma linha só: quebras de linha e espaços repetidos viram um espaço (e sem pontas). */
+/** Primeira letra maiúscula, para as listas não misturarem "salário" e "Salário". */
+fun String.capitalizeFirst(): String = replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
 fun String.cleanLine(): String = replace(LineJunk, " ").trim()
 
 private val LineJunk = Regex("[\\s\\u00A0\\u200B]+")

@@ -173,11 +173,12 @@ private fun HomeScreenContent(vm: MainViewModel) {
     run {
         val view = androidx.compose.ui.platform.LocalView.current
         val header = LocalAppColors.current.headerBackground
+        val menuOpen = addMenuOpen // lido aqui, na composição, para o efeito reagir à mudança
         if (!view.isInEditMode) {
             androidx.compose.runtime.SideEffect {
                 val window = (view.context as? android.app.Activity)?.window
                     ?: return@SideEffect
-                val c = if (addMenuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, 0.45f) else header
+                val c = if (menuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, 0.45f) else header
                 window.statusBarColor = c.toArgb()
             }
         }
@@ -400,7 +401,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             item {
                                 EmptyState(
                                     Icons.Default.Receipt,
-                                    "Nenhum gasto por aqui",
+                                    "Nenhuma despesa por aqui",
                                     "Toque no + para lançar o primeiro."
                                 )
                             }
@@ -427,7 +428,8 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             InsightsCard(
                                 // Dívida não pertence a um mês: só entra na conta do mês atual.
                                 owedCents = if (month == YearMonth.now()) debts.sumOf { it.status.balanceCents } else 0L,
-                                balanceCents = overview.balance,
+                                // As fixas ainda não pagas vão sair do saldo: não dá para gastá-las por dia.
+                                balanceCents = overview.balance - fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
                                 daysLeft = if (month == YearMonth.now()) {
                                     month.lengthOfMonth() - LocalDate.now().dayOfMonth + 1
                                 } else null
@@ -444,8 +446,8 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             item {
                                 EmptyState(
                                     Icons.Default.Receipt,
-                                    "Nenhum gasto neste mês",
-                                    "Quando você lançar gastos, o resumo aparece aqui."
+                                    "Nenhuma despesa neste mês",
+                                    "Quando você lançar despesas, o resumo aparece aqui."
                                 )
                             }
                         }
@@ -509,7 +511,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             }
         AppBottomBar(
             items = listOf(
-                NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
+                NavItem("Despesas", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
                 NavItem("Fixas", Icons.Outlined.EventRepeat, Icons.Filled.EventRepeat),
                 NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
                 NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
@@ -708,7 +710,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onToggleFixed = { name, fixed -> vm.setTypeFixed(name, fixed) },
             onDelete = { name ->
                 vm.deleteType(name) { ok ->
-                    if (!ok) toast("Esse tipo está em uso. Mude os gastos de tipo antes de excluir.")
+                    if (!ok) toast("Esse tipo está em uso. Mude as despesas de tipo antes de excluir.")
                 }
             },
             onDismiss = { showTypes = false }
@@ -723,7 +725,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onRename = { old, new -> vm.renameCategory(old, new) },
             onDelete = { name ->
                 vm.deleteCategory(name) { ok ->
-                    if (!ok) toast("Essa categoria está em uso. Mude os gastos de categoria antes de excluir.")
+                    if (!ok) toast("Essa categoria está em uso. Mude as despesas de categoria antes de excluir.")
                 }
             },
             onDismiss = { showCategories = false }

@@ -357,6 +357,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Cria (id 0, valendo do mês exibido em diante) ou muda uma despesa fixa. */
     fun saveFixedExpense(f: FixedExpense) {
         viewModelScope.launch {
+            val f = f.copy(description = f.description.cleanLine().capitalizeFirst())
             if (f.id == 0L) dao.insertFixedExpense(f.copy(startMonth = month.value.toString(), endMonth = null))
             else dao.updateFixedExpense(f)
         }
@@ -423,6 +424,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun saveIncome(i: Income) {
         viewModelScope.launch {
+            val i = i.copy(description = i.description.cleanLine().capitalizeFirst())
             if (i.id == 0L) dao.insertIncome(i) else dao.updateIncome(i)
             month.value = YearMonth.from(LocalDate.ofEpochDay(i.epochDay))
         }

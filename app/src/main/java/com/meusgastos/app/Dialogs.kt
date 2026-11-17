@@ -307,11 +307,11 @@ fun SettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Limite de gastos do mês",
+                    "Limite de despesas do mês",
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Soma de gastos fixos e variáveis. O painel muda de cor ao chegar em 80% " +
+                    "Soma de despesas fixas e variáveis. O painel muda de cor ao chegar em 80% " +
                         "e ao passar do limite. Deixe vazio para não usar.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

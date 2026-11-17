@@ -82,7 +82,7 @@ fun LazyListScope.captureTip(show: Boolean, onEnable: () -> Unit, onDismiss: () 
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Lance gastos sozinho", fontWeight = FontWeight.Bold)
+                Text("Lance despesas sozinho", fontWeight = FontWeight.Bold)
                 Text(
                     "Deixe o app ler as notificações do seu banco. Cada compra, Pix e pagamento " +
                         "aparece aqui para você confirmar com um toque.",
@@ -192,7 +192,7 @@ private fun PendingCard(
                     )
                     if (duplicate) {
                         Text(
-                            "Parece que você já lançou um gasto igual",
+                            "Parece que você já lançou uma despesa igual",
                             style = MaterialTheme.typography.labelSmall,
                             color = WarningColor
                         )

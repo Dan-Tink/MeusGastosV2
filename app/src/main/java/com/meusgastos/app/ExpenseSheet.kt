@@ -207,7 +207,7 @@ fun ExpenseSheet(
     fun buildExpense() = Expense(
         id = initial?.id ?: 0L,
         type = type,
-        description = desc.trim(),
+        description = desc.cleanLine().capitalizeFirst(),
         amountCents = cents ?: 0L,
         epochDay = effDate.toEpochDay(),
         isCredit = if (initial == null) credit else initial.isCredit,
@@ -253,7 +253,7 @@ fun ExpenseSheet(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        if (initial == null) "Novo gasto" else if (isPrefill) "Confirmar gasto" else "Editar gasto",
+                        if (initial == null) "Nova despesa" else if (isPrefill) "Confirmar despesa" else "Editar despesa",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -638,7 +638,7 @@ fun ExpenseSheet(
                             tint = MaterialTheme.colorScheme.error
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text("Excluir gasto", color = MaterialTheme.colorScheme.error)
+                        Text("Excluir despesa", color = MaterialTheme.colorScheme.error)
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -699,7 +699,7 @@ fun ExpenseSheet(
     if (confirmDelete && initial != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Excluir gasto?") },
+            title = { Text("Excluir despesa?") },
             text = { Text("\"${initial.title()}\" será removido.") },
             confirmButton = {
                 TextButton(onClick = {

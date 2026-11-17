@@ -300,7 +300,7 @@ fun PayFixedSheet(
                 colors = softFieldColors()
             )
             Text(
-                "Vira um gasto de ${month.label()} (${fixed.type} · ${fixed.category}).",
+                "Vira uma despesa de ${month.label()} (${fixed.type} · ${fixed.category}).",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -419,8 +419,8 @@ fun FixedExpenseSheet(
             }
 
             Text(
-                if (editing == null) "Aparece na aba a partir de ${month.label()}. Não entra nos gastos até você tocar em Pagar."
-                else "A mudança vale para os meses ainda não pagos. Gastos já pagos não mudam.",
+                if (editing == null) "Aparece na aba a partir de ${month.label()}. Não entra nas despesas até você tocar em Pagar."
+                else "A mudança vale para os meses ainda não pagos. Despesas já pagas não mudam.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -462,7 +462,7 @@ fun FixedExpenseSheet(
             text = {
                 Text(
                     "\"${editing.description}\" deixa de aparecer a partir de ${month.label()}. " +
-                        "Os meses anteriores e os gastos já pagos continuam como estão."
+                        "Os meses anteriores e as despesas já pagas continuam como estão."
                 )
             },
             confirmButton = {
