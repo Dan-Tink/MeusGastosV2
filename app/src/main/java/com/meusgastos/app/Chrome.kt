@@ -289,7 +289,7 @@ private fun RowScope.NavTab(item: NavItem, selected: Boolean, onClick: () -> Uni
         Spacer(Modifier.height(2.dp))
         Text(
             item.label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1

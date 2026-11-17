@@ -191,7 +191,7 @@ private fun FixedRow(month: YearMonth, v: FixedExpenseView, onPay: () -> Unit, o
             CategoryBadge(f.category, size = 44.dp, iconKey = f.icon)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(f.description.cleanLine(), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(f.description.cleanLine().capitalizeFirst(), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (late) {
                     Text(
                         if (daysLate == 1) "Atrasada há 1 dia" else "Atrasada há $daysLate dias",
@@ -282,7 +282,7 @@ fun PayFixedSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Pagar ${fixed.description.cleanLine()}",
+                "Pagar ${fixed.description.cleanLine().capitalizeFirst()}",
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleMedium,

@@ -174,12 +174,17 @@ private fun HomeScreenContent(vm: MainViewModel) {
         val view = androidx.compose.ui.platform.LocalView.current
         val header = LocalAppColors.current.headerBackground
         val menuOpen = addMenuOpen // lido aqui, na composição, para o efeito reagir à mudança
+        // Mesmo tempo do fade do escurecimento do conteúdo, para a faixa e o cabeçalho andarem juntos.
+        val band by androidx.compose.animation.animateColorAsState(
+            targetValue = if (menuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, ScrimAlpha) else header,
+            animationSpec = androidx.compose.animation.core.tween(ScrimMillis),
+            label = "statusBand"
+        )
         if (!view.isInEditMode) {
             androidx.compose.runtime.SideEffect {
                 val window = (view.context as? android.app.Activity)?.window
                     ?: return@SideEffect
-                val c = if (menuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, 0.45f) else header
-                window.statusBarColor = c.toArgb()
+                window.statusBarColor = band.toArgb()
             }
         }
     }
@@ -503,11 +508,11 @@ private fun HomeScreenContent(vm: MainViewModel) {
             // Escurece o conteúdo enquanto o menu do "+" está aberto (a barra de baixo fica de fora).
             androidx.compose.animation.AnimatedVisibility(
                 visible = addMenuOpen,
-                enter = androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.fadeOut(),
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(ScrimMillis)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(ScrimMillis)),
                 modifier = Modifier.matchParentSize()
             ) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = ScrimAlpha)))
             }
         AppBottomBar(
             items = listOf(
@@ -785,7 +790,7 @@ private fun ListTotal(state: UiState, creditOnly: Boolean = false) {
     ) {
         Text(
             if (creditOnly) "Fatura do cartão · ${state.items.size} compra(s)"
-            else "Total · ${state.items.size} lançamento(s)",
+            else "Total · ${state.items.size.plural("lançamento", "lançamentos")}",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
@@ -817,8 +822,8 @@ private fun SummaryCard(state: MonthSummary) {
             val top = state.byCategory.firstOrNull()
             Text(
                 if (top != null && state.total > 0)
-                    "${state.count} lançamento(s) · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
-                else "${state.count} lançamento(s)",
+                    "${state.count.plural("lançamento", "lançamentos")} · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
+                else state.count.plural("lançamento", "lançamentos"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1035,7 +1040,9 @@ private fun ExpenseRow(e: Expense, showDate: Boolean, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    if (showDate) "${e.category} • ${e.type} • ${date.fmt()}" else "${e.category} • ${e.type}",
+                    // "Variável" é o padrão e aparecia em quase toda linha: só mostra tipos diferentes.
+                    listOfNotNull(e.category, e.type.takeIf { it != "Variável" }, date.fmt().takeIf { showDate })
+                        .joinToString(" • "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1298,3 +1305,7 @@ private fun MenuRow(label: String, icon: androidx.compose.ui.graphics.vector.Ima
         onClick = onClick
     )
 }
+
+/** Escurecimento do conteúdo (e da faixa de status) com o menu "+" aberto. */
+private const val ScrimAlpha = 0.45f
+private const val ScrimMillis = 250

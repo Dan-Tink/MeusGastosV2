@@ -80,7 +80,7 @@ fun LazyListScope.incomesTab(
     items(fixed.sortedWith(compareBy({ it.dayOfMonth }, { it.description.lowercase() })), key = { "inc-fixed-${it.id}" }) { f ->
         IncomeRow(
             icon = Icons.Default.Repeat,
-            title = f.description,
+            title = f.description.capitalizeFirst(),
             subtitle = "Todo dia ${f.dayOfMonth}",
             badge = "",
             cents = f.amountCents,
@@ -97,7 +97,7 @@ fun LazyListScope.incomesTab(
     items(variable, key = { "inc-var-${it.id}" }) { i ->
         IncomeRow(
             icon = Icons.Default.CalendarMonth,
-            title = i.description,
+            title = i.description.capitalizeFirst(),
             subtitle = LocalDate.ofEpochDay(i.epochDay).fmt(),
             badge = "só este mês",
             cents = i.amountCents,
