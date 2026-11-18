@@ -930,7 +930,7 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
-                            "$name · ${value * 100 / total}%",
+                            "$name · ${maxOf(1L, value * 100 / total)}%",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (name == data.first().first) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
