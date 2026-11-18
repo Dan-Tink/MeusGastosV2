@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -176,7 +177,9 @@ private fun HomeScreenContent(vm: MainViewModel) {
         val menuOpen = addMenuOpen // lido aqui, na composição, para o efeito reagir à mudança
         // Mesmo tempo do fade do escurecimento do conteúdo, para a faixa e o cabeçalho andarem juntos.
         val band by androidx.compose.animation.animateColorAsState(
-            targetValue = if (menuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, ScrimAlpha) else header,
+            // Preto com 45% de opacidade por cima do cabeçalho: é exatamente o que o escurecimento faz.
+            // (graphics.lerp mistura em Oklab e dava um tom bem mais escuro que o do cabeçalho.)
+            targetValue = if (menuOpen) Color.Black.copy(alpha = ScrimAlpha).compositeOver(header) else header,
             animationSpec = androidx.compose.animation.core.tween(ScrimMillis),
             label = "statusBand"
         )
@@ -528,7 +531,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onAddIncome = { incomeSheet = IncomeSheetState() },
             onAddDebt = { showNewDebt = true },
             onAddFixed = {
-                tab = TAB_FIXED
                 fixedSheet = FixedExpense(type = "", category = "", description = "", amountCents = 0, dayOfMonth = 1, startMonth = month.toString())
             },
             modifier = Modifier.align(Alignment.BottomCenter)
