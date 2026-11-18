@@ -180,11 +180,14 @@ private fun HomeScreenContent(vm: MainViewModel) {
             animationSpec = androidx.compose.animation.core.tween(ScrimMillis),
             label = "statusBand"
         )
+        // A cor animada é lida AQUI, na composição: dentro do SideEffect ela não faria o efeito
+        // rodar a cada quadro, e a faixa ficaria parada na cor do começo da animação.
+        val bandArgb = band.toArgb()
         if (!view.isInEditMode) {
             androidx.compose.runtime.SideEffect {
                 val window = (view.context as? android.app.Activity)?.window
                     ?: return@SideEffect
-                window.statusBarColor = band.toArgb()
+                window.statusBarColor = bandArgb
             }
         }
     }
