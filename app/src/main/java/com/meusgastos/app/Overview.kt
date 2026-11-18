@@ -292,7 +292,7 @@ fun RecentExpensesCard(recent: List<Expense>) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     CategoryBadge(e.category, size = 32.dp, iconKey = e.icon)
                     Spacer(Modifier.width(10.dp))
-                    Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
+                    Text(e.title(), modifier = Modifier.weight(1f), maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium)
                     Text(e.amountCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold)

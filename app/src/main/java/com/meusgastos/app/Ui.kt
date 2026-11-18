@@ -339,22 +339,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
                 }
             }
 
-            // Cartão de saldo logo abaixo do cabeçalho, que tem a mesma altura em todas as abas.
-            if (tab == TAB_SUMMARY) {
-                Box(
-                    Modifier
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp)
-                ) {
-                    OverviewCard(
-                        o = overview,
-                        limit = limit.takeIf { it > 0 },
-                        prevLabel = month.minusMonths(1).monthName(),
-                        fixedPending = fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
-                        onIncomeClick = { tab = TAB_INCOMES }
-                    )
-                }
-            }
-
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
@@ -432,6 +416,17 @@ private fun HomeScreenContent(vm: MainViewModel) {
 
                     // ---------------------------------------------- Resumo: o painel do mês
                     TAB_SUMMARY -> {
+                        // O saldo rola junto com o resto: fixo, ele ocupava um terço da tela e o conteúdo
+                        // era cortado seco na borda dele.
+                        item {
+                            OverviewCard(
+                                o = overview,
+                                limit = limit.takeIf { it > 0 },
+                                prevLabel = month.minusMonths(1).monthName(),
+                                fixedPending = fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
+                                onIncomeClick = { tab = TAB_INCOMES }
+                            )
+                        }
                         item {
                             InsightsCard(
                                 // Dívida não pertence a um mês: só entra na conta do mês atual.
