@@ -142,7 +142,7 @@ private fun DebtSummaryCard(t: DebtTotals) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                "Dinheiro que devo; não conta como gasto do mês.",
+                "Dinheiro que devo; não conta como despesa do mês.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

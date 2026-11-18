@@ -55,12 +55,20 @@ fun YearMonth.monthName(): String = month.getDisplayName(TextStyle.FULL, PtBR)
 fun YearMonth.label(): String = monthName().replaceFirstChar { it.uppercase() } + " " + year
 
 /** Texto exibido do gasto; em parcelas inclui o número, como "Moto (3/48)". */
-fun Expense.title(): String =
-    if (installmentCount > 1) "$description ($installmentNo/$installmentCount)" else description
+fun Expense.title(): String {
+    val name = description.capitalizeFirst()
+    return if (installmentCount > 1) "$name ($installmentNo/$installmentCount)" else name
+}
+
+/** "1 lançamento", "15 lançamentos". */
+fun Int.plural(one: String, many: String): String = "$this ${if (this == 1) one else many}"
 
 /** Minúsculas e sem acentos, para buscas. */
 fun String.norm(): String =
     Normalizer.normalize(lowercase(), Normalizer.Form.NFD).replace(AccentMarks, "")
+
+/** Primeira letra maiúscula, para as listas não misturarem "salário" e "Salário". */
+fun String.capitalizeFirst(): String = replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
 /** Texto em uma linha só: quebras de linha e espaços repetidos viram um espaço (e sem pontas). */
 fun String.cleanLine(): String = replace(LineJunk, " ").trim()

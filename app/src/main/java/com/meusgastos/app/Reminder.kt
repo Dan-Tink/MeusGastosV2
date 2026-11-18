@@ -83,7 +83,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val notification = NotificationCompat.Builder(ctx, Reminder.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Meus Gastos")
-            .setContentText("Lançou os gastos de hoje? Leva só um minutinho.")
+            .setContentText("Lançou as despesas de hoje? Leva só um minutinho.")
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()

@@ -239,6 +239,8 @@ private val CategoryColors = mapOf(
     "Saúde" to Color(0xFFD6458F),
     "Lazer" to Color(0xFFB46BDB),
     "Compras" to Color(0xFFD4A017),
+    "Mercado" to Color(0xFF0E9AA7),
+    "Combustível" to Color(0xFFB07A45),
     "Contas" to Color(0xFF6B7F99),
     "Outros" to Color(0xFF7A8C80)
 )

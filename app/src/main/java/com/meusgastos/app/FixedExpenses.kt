@@ -191,7 +191,7 @@ private fun FixedRow(month: YearMonth, v: FixedExpenseView, onPay: () -> Unit, o
             CategoryBadge(f.category, size = 44.dp, iconKey = f.icon)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(f.description.cleanLine(), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(f.description.cleanLine().capitalizeFirst(), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (late) {
                     Text(
                         if (daysLate == 1) "Atrasada há 1 dia" else "Atrasada há $daysLate dias",
@@ -282,7 +282,7 @@ fun PayFixedSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Pagar ${fixed.description.cleanLine()}",
+                "Pagar ${fixed.description.cleanLine().capitalizeFirst()}",
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleMedium,
@@ -300,7 +300,7 @@ fun PayFixedSheet(
                 colors = softFieldColors()
             )
             Text(
-                "Vira um gasto de ${month.label()} (${fixed.type} · ${fixed.category}).",
+                "Vira uma despesa de ${month.label()} (${fixed.type} · ${fixed.category}).",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -419,8 +419,8 @@ fun FixedExpenseSheet(
             }
 
             Text(
-                if (editing == null) "Aparece na aba a partir de ${month.label()}. Não entra nos gastos até você tocar em Pagar."
-                else "A mudança vale para os meses ainda não pagos. Gastos já pagos não mudam.",
+                if (editing == null) "Aparece na aba a partir de ${month.label()}. Não entra nas despesas até você tocar em Pagar."
+                else "A mudança vale para os meses ainda não pagos. Despesas já pagas não mudam.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -462,7 +462,7 @@ fun FixedExpenseSheet(
             text = {
                 Text(
                     "\"${editing.description}\" deixa de aparecer a partir de ${month.label()}. " +
-                        "Os meses anteriores e os gastos já pagos continuam como estão."
+                        "Os meses anteriores e as despesas já pagas continuam como estão."
                 )
             },
             confirmButton = {

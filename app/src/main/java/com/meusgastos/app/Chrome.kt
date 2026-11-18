@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 // ---------------------------------------------------------------------------------------
 // Peças da identidade visual que se repetem nas abas: cabeçalho verde, barra inferior com o
@@ -289,7 +290,7 @@ private fun RowScope.NavTab(item: NavItem, selected: Boolean, onClick: () -> Uni
         Spacer(Modifier.height(2.dp))
         Text(
             item.label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1

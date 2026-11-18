@@ -283,6 +283,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         UiState(list, list.sumOf { it.amountCents }, byType, byCategory, scope)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 
+    // Travas declaradas ANTES do init: o init já dispara coroutines que as usam (viewModelScope roda
+    // na hora, na thread principal), e uma propriedade declarada depois ainda estaria nula.
+    private val payLock = Mutex()
+    private val recurringLock = Mutex()
+
     init {
         if (settings.reminderEnabled) Reminder.schedule(app, settings.reminderHour, replace = false)
         migrateRecurringToFixed()
@@ -352,6 +357,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Cria (id 0, valendo do mês exibido em diante) ou muda uma despesa fixa. */
     fun saveFixedExpense(f: FixedExpense) {
         viewModelScope.launch {
+            val f = f.copy(description = f.description.cleanLine().capitalizeFirst())
             if (f.id == 0L) dao.insertFixedExpense(f.copy(startMonth = month.value.toString(), endMonth = null))
             else dao.updateFixedExpense(f)
         }
@@ -386,7 +392,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private val payLock = Mutex()
 
     fun delete(e: Expense) {
         viewModelScope.launch {
@@ -419,6 +424,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun saveIncome(i: Income) {
         viewModelScope.launch {
+            val i = i.copy(description = i.description.cleanLine().capitalizeFirst())
             if (i.id == 0L) dao.insertIncome(i) else dao.updateIncome(i)
             month.value = YearMonth.from(LocalDate.ofEpochDay(i.epochDay))
         }
@@ -530,15 +536,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- recorrentes antigos
 
-    private val recurringLock = Mutex()
-
     /**
      * Os "gastos recorrentes" antigos deixaram de existir: o que ainda estava cadastrado vira
      * despesa fixa (aba Fixas, com o botão Pagar), valendo do mês atual. Roda uma vez e não duplica.
      */
     private fun migrateRecurringToFixed() {
         viewModelScope.launch {
-            recurringLock.withLock {
+            runCatching { recurringLock.withLock {
                 if (settings.recurringMigrated) return@withLock
                 val existing = dao.fixedExpensesOnce()
                 val now = YearMonth.now().toString()
@@ -560,7 +564,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                 }
                 settings.recurringMigrated = true
-            }
+            } }
         }
     }
 

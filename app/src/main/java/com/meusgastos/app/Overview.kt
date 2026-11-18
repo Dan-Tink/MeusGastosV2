@@ -60,14 +60,16 @@ fun OverviewCard(
 
     // Referência da barra: o limite definido ou, na falta dele, os ganhos do mês.
     val reference: Long? = limit ?: o.income.takeIf { it > 0 }
-    val pct: Long = if (reference != null && reference > 0) spent * 100 / reference else 0
+    // Contra os ganhos, o que saiu inclui as dívidas pagas (o saldo já as desconta); contra o limite, não.
+    val used = if (limit == null) spent + o.debtPaid else spent
+    val pct: Long = if (reference != null && reference > 0) used * 100 / reference else 0
     val ratio = if (reference != null && reference > 0) {
-        (spent.toFloat() / reference.toFloat()).coerceIn(0f, 1f)
+        (used.toFloat() / reference.toFloat()).coerceIn(0f, 1f)
     } else 0f
     val barColor = when {
         limit != null && pct >= 100 -> MaterialTheme.colorScheme.error
         limit != null && pct >= 80 -> WarningColor
-        limit == null && spent > o.income -> MaterialTheme.colorScheme.error
+        limit == null && used > o.income -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
 
@@ -120,7 +122,7 @@ fun OverviewCard(
 
             if (fixedPending > 0) {
                 Text(
-                    if (hidden) "Ainda há fixas a pagar" else "Fixas a pagar: ${fixedPending.toMoney()} (ainda não descontadas do saldo)",
+                    if (hidden) "Ainda há fixas a pagar" else "Fixas a pagar: ${fixedPending.toMoney()} · fora do saldo",
                     style = MaterialTheme.typography.bodySmall,
                     color = WarningColor
                 )
@@ -149,7 +151,8 @@ fun OverviewCard(
                     }
                     "$pct% do limite de ${limit.toMoney()}$alert"
                 }
-                o.income > 0 -> "$pct% dos ganhos já foram gastos"
+                o.income > 0 && o.debtPaid > 0 -> "$pct% dos ganhos já foram para despesas e dívidas"
+                o.income > 0 -> "$pct% dos ganhos já foram para despesas"
                 else -> "Toque em Ganhos para lançar seu salário e acompanhar o saldo"
             }
             Text(
@@ -165,7 +168,7 @@ fun OverviewCard(
                 val (text, color) = when {
                     diff > 0 -> "Você gastou $diff% a mais que em $prevLabel$period" to WarningColor
                     diff < 0 -> "Você gastou ${-diff}% a menos que em $prevLabel$period" to PositiveColor
-                    else -> "Mesmo gasto de $prevLabel$period" to
+                    else -> "Mesma despesa de $prevLabel$period" to
                         MaterialTheme.colorScheme.onSurfaceVariant
                 }
                 Text(text, style = MaterialTheme.typography.labelSmall, color = color)
@@ -283,13 +286,13 @@ fun RecentExpensesCard(recent: List<Expense>) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Últimos gastos", style = MaterialTheme.typography.labelMedium,
+            Text("Últimas despesas", style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             recent.forEach { e ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     CategoryBadge(e.category, size = 32.dp, iconKey = e.icon)
                     Spacer(Modifier.width(10.dp))
-                    Text(e.description, modifier = Modifier.weight(1f), maxLines = 1,
+                    Text(e.title(), modifier = Modifier.weight(1f), maxLines = 1,
                         style = MaterialTheme.typography.bodyMedium)
                     Text(e.amountCents.toMoney(), style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold)

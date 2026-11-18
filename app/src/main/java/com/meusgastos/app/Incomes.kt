@@ -77,10 +77,10 @@ fun LazyListScope.incomesTab(
     if (fixed.isEmpty()) {
         item(key = "inc-fixed-empty") { EmptyHint("Nenhum ganho fixo. Ex.: salário, aluguel recebido.") }
     }
-    items(fixed, key = { "inc-fixed-${it.id}" }) { f ->
+    items(fixed.sortedWith(compareBy({ it.dayOfMonth }, { it.description.lowercase() })), key = { "inc-fixed-${it.id}" }) { f ->
         IncomeRow(
             icon = Icons.Default.Repeat,
-            title = f.description,
+            title = f.description.capitalizeFirst(),
             subtitle = "Todo dia ${f.dayOfMonth}",
             badge = "",
             cents = f.amountCents,
@@ -97,7 +97,7 @@ fun LazyListScope.incomesTab(
     items(variable, key = { "inc-var-${it.id}" }) { i ->
         IncomeRow(
             icon = Icons.Default.CalendarMonth,
-            title = i.description,
+            title = i.description.capitalizeFirst(),
             subtitle = LocalDate.ofEpochDay(i.epochDay).fmt(),
             badge = "só este mês",
             cents = i.amountCents,
@@ -435,7 +435,7 @@ fun IncomeSheet(
             Button(
                 onClick = {
                     if (fixedMode) {
-                        onSaveFixed(desc.trim(), cents ?: 0L, day ?: 1, editingFixed)
+                        onSaveFixed(desc.cleanLine().capitalizeFirst(), cents ?: 0L, day ?: 1, editingFixed)
                     } else {
                         onSaveVariable(
                             Income(

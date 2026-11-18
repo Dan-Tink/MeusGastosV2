@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -173,12 +174,23 @@ private fun HomeScreenContent(vm: MainViewModel) {
     run {
         val view = androidx.compose.ui.platform.LocalView.current
         val header = LocalAppColors.current.headerBackground
+        val menuOpen = addMenuOpen // lido aqui, na composição, para o efeito reagir à mudança
+        // Mesmo tempo do fade do escurecimento do conteúdo, para a faixa e o cabeçalho andarem juntos.
+        val band by androidx.compose.animation.animateColorAsState(
+            // Preto com 45% de opacidade por cima do cabeçalho: é exatamente o que o escurecimento faz.
+            // (graphics.lerp mistura em Oklab e dava um tom bem mais escuro que o do cabeçalho.)
+            targetValue = if (menuOpen) Color.Black.copy(alpha = ScrimAlpha).compositeOver(header) else header,
+            animationSpec = androidx.compose.animation.core.tween(ScrimMillis),
+            label = "statusBand"
+        )
+        // A cor animada é lida AQUI, na composição: dentro do SideEffect ela não faria o efeito
+        // rodar a cada quadro, e a faixa ficaria parada na cor do começo da animação.
+        val bandArgb = band.toArgb()
         if (!view.isInEditMode) {
             androidx.compose.runtime.SideEffect {
                 val window = (view.context as? android.app.Activity)?.window
                     ?: return@SideEffect
-                val c = if (addMenuOpen) androidx.compose.ui.graphics.lerp(header, Color.Black, 0.45f) else header
-                window.statusBarColor = c.toArgb()
+                window.statusBarColor = bandArgb
             }
         }
     }
@@ -330,22 +342,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
                 }
             }
 
-            // Cartão de saldo logo abaixo do cabeçalho, que tem a mesma altura em todas as abas.
-            if (tab == TAB_SUMMARY) {
-                Box(
-                    Modifier
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp)
-                ) {
-                    OverviewCard(
-                        o = overview,
-                        limit = limit.takeIf { it > 0 },
-                        prevLabel = month.minusMonths(1).monthName(),
-                        fixedPending = fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
-                        onIncomeClick = { tab = TAB_INCOMES }
-                    )
-                }
-            }
-
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
@@ -400,7 +396,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             item {
                                 EmptyState(
                                     Icons.Default.Receipt,
-                                    "Nenhum gasto por aqui",
+                                    "Nenhuma despesa por aqui",
                                     "Toque no + para lançar o primeiro."
                                 )
                             }
@@ -423,11 +419,23 @@ private fun HomeScreenContent(vm: MainViewModel) {
 
                     // ---------------------------------------------- Resumo: o painel do mês
                     TAB_SUMMARY -> {
+                        // O saldo rola junto com o resto: fixo, ele ocupava um terço da tela e o conteúdo
+                        // era cortado seco na borda dele.
+                        item {
+                            OverviewCard(
+                                o = overview,
+                                limit = limit.takeIf { it > 0 },
+                                prevLabel = month.minusMonths(1).monthName(),
+                                fixedPending = fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
+                                onIncomeClick = { tab = TAB_INCOMES }
+                            )
+                        }
                         item {
                             InsightsCard(
                                 // Dívida não pertence a um mês: só entra na conta do mês atual.
                                 owedCents = if (month == YearMonth.now()) debts.sumOf { it.status.balanceCents } else 0L,
-                                balanceCents = overview.balance,
+                                // As fixas ainda não pagas vão sair do saldo: não dá para gastá-las por dia.
+                                balanceCents = overview.balance - fixedExpenses.filter { it.paid == null }.sumOf { it.fixed.amountCents },
                                 daysLeft = if (month == YearMonth.now()) {
                                     month.lengthOfMonth() - LocalDate.now().dayOfMonth + 1
                                 } else null
@@ -444,8 +452,8 @@ private fun HomeScreenContent(vm: MainViewModel) {
                             item {
                                 EmptyState(
                                     Icons.Default.Receipt,
-                                    "Nenhum gasto neste mês",
-                                    "Quando você lançar gastos, o resumo aparece aqui."
+                                    "Nenhuma despesa neste mês",
+                                    "Quando você lançar despesas, o resumo aparece aqui."
                                 )
                             }
                         }
@@ -501,15 +509,15 @@ private fun HomeScreenContent(vm: MainViewModel) {
             // Escurece o conteúdo enquanto o menu do "+" está aberto (a barra de baixo fica de fora).
             androidx.compose.animation.AnimatedVisibility(
                 visible = addMenuOpen,
-                enter = androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.fadeOut(),
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(ScrimMillis)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(ScrimMillis)),
                 modifier = Modifier.matchParentSize()
             ) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = ScrimAlpha)))
             }
         AppBottomBar(
             items = listOf(
-                NavItem("Gastos", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
+                NavItem("Despesas", Icons.Outlined.Receipt, Icons.Filled.Receipt, badge = pending.size),
                 NavItem("Fixas", Icons.Outlined.EventRepeat, Icons.Filled.EventRepeat),
                 NavItem("Resumo", Icons.Outlined.PieChart, Icons.Filled.PieChart),
                 NavItem("Ganhos", Icons.Outlined.Payments, Icons.Filled.Payments),
@@ -523,7 +531,6 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onAddIncome = { incomeSheet = IncomeSheetState() },
             onAddDebt = { showNewDebt = true },
             onAddFixed = {
-                tab = TAB_FIXED
                 fixedSheet = FixedExpense(type = "", category = "", description = "", amountCents = 0, dayOfMonth = 1, startMonth = month.toString())
             },
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -708,7 +715,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onToggleFixed = { name, fixed -> vm.setTypeFixed(name, fixed) },
             onDelete = { name ->
                 vm.deleteType(name) { ok ->
-                    if (!ok) toast("Esse tipo está em uso. Mude os gastos de tipo antes de excluir.")
+                    if (!ok) toast("Esse tipo está em uso. Mude as despesas de tipo antes de excluir.")
                 }
             },
             onDismiss = { showTypes = false }
@@ -723,7 +730,7 @@ private fun HomeScreenContent(vm: MainViewModel) {
             onRename = { old, new -> vm.renameCategory(old, new) },
             onDelete = { name ->
                 vm.deleteCategory(name) { ok ->
-                    if (!ok) toast("Essa categoria está em uso. Mude os gastos de categoria antes de excluir.")
+                    if (!ok) toast("Essa categoria está em uso. Mude as despesas de categoria antes de excluir.")
                 }
             },
             onDismiss = { showCategories = false }
@@ -783,7 +790,7 @@ private fun ListTotal(state: UiState, creditOnly: Boolean = false) {
     ) {
         Text(
             if (creditOnly) "Fatura do cartão · ${state.items.size} compra(s)"
-            else "Total · ${state.items.size} lançamento(s)",
+            else "Total · ${state.items.size.plural("lançamento", "lançamentos")}",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
@@ -815,8 +822,8 @@ private fun SummaryCard(state: MonthSummary) {
             val top = state.byCategory.firstOrNull()
             Text(
                 if (top != null && state.total > 0)
-                    "${state.count} lançamento(s) · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
-                else "${state.count} lançamento(s)",
+                    "${state.count.plural("lançamento", "lançamentos")} · maior categoria: ${top.first} (${top.second * 100 / state.total}%)"
+                else state.count.plural("lançamento", "lançamentos"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -923,7 +930,7 @@ private fun CategoryDonut(data: List<Pair<String, Long>>, total: Long) {
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
-                            "$name · ${value * 100 / total}%",
+                            "$name · ${maxOf(1L, value * 100 / total)}%",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (name == data.first().first) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
@@ -1033,7 +1040,9 @@ private fun ExpenseRow(e: Expense, showDate: Boolean, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    if (showDate) "${e.category} • ${e.type} • ${date.fmt()}" else "${e.category} • ${e.type}",
+                    // "Variável" é o padrão e aparecia em quase toda linha: só mostra tipos diferentes.
+                    listOfNotNull(e.category, e.type.takeIf { it != "Variável" }, date.fmt().takeIf { showDate })
+                        .joinToString(" • "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1296,3 +1305,7 @@ private fun MenuRow(label: String, icon: androidx.compose.ui.graphics.vector.Ima
         onClick = onClick
     )
 }
+
+/** Escurecimento do conteúdo (e da faixa de status) com o menu "+" aberto. */
+private const val ScrimAlpha = 0.45f
+private const val ScrimMillis = 250
