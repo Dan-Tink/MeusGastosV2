@@ -307,14 +307,14 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
     AccentTheme.ROXO -> AccentSpec(
         c(0xFF7B4FD6),
         c(0xFF6A3FC8), c(0xFFE7DDFA), c(0xFF2A1466), c(0xFF7B4FD6), c(0xFFF6F4FA), c(0xFFEEEAF5), c(0xFFE1DCEC),
-        c(0xFFB8A2F2), c(0xFF24104F), c(0xFF3B2677), c(0xFFE6DDFB), c(0xFF5B37A8),
-        c(0xFF0E0B14), c(0xFF1B1626), c(0xFF241D33), c(0xFF3D3357), c(0xFF322A47)
+        c(0xFFCDB4FF), c(0xFF2D1565), c(0xFF4E3592), c(0xFFEBDDFF), c(0xFF7E55D6),
+        c(0xFF130F1E), c(0xFF221A33), c(0xFF2C2342), c(0xFF54457A), c(0xFF3B3057)
     )
     AccentTheme.ROSA -> AccentSpec(
         c(0xFFD81B6F),
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
-        c(0xFFF48FB8), c(0xFF4A0A28), c(0xFF6B1B41), c(0xFFFFD9E8), c(0xFFA8195A),
-        c(0xFF140B0F), c(0xFF261720), c(0xFF301D28), c(0xFF4E3040), c(0xFF3F2634)
+        c(0xFFFFA3C7), c(0xFF4D0B2C), c(0xFF7C2455), c(0xFFFFD9EA), c(0xFFC0286F),
+        c(0xFF1B0F17), c(0xFF2E1B28), c(0xFF3A2332), c(0xFF66405A), c(0xFF4A2D3F)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
