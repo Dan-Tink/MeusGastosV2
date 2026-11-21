@@ -313,8 +313,10 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
     AccentTheme.ROSA -> AccentSpec(
         c(0xFFD81B6F),
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
-        c(0xFFFFC2DC), c(0xFF5A1038), c(0xFFCC246D), c(0xFFFFF4F8), c(0xFFF34993),
-        c(0xFF4B162D), c(0xFF77284A), c(0xFF8A3359), c(0xFFDC74A1), c(0xFF9E3D67)
+        // Rosa no modo escuro: não escurece, fica todo rosa claro (ver rosaClaro()).
+        // primária, sobre-primária, contêiner, sobre-contêiner, cabeçalho, fundo, cartão, variante, borda, realce
+        c(0xFFC81E64), c(0xFFFFFFFF), c(0xFFFFC9DE), c(0xFF5A1038), c(0xFFE24A8D),
+        c(0xFFFFE3EE), c(0xFFFFF7FA), c(0xFFFFE8F1), c(0xFFF5B5CF), c(0xFFFFDCE9)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
@@ -364,8 +366,7 @@ private fun darkFor(a: AccentTheme): ColorScheme {
     return DarkScheme.copy(
         onBackground = Color.hsl(h, 0.14f, 0.91f),
         onSurface = Color.hsl(h, 0.14f, 0.91f),
-        // Rosa: fundos mais claros pedem texto secundário mais claro para manter a leitura.
-        onSurfaceVariant = if (a == AccentTheme.ROSA) Color.hsl(h, 0.16f, 0.88f) else Color.hsl(h, 0.10f, 0.70f),
+        onSurfaceVariant = Color.hsl(h, 0.10f, 0.70f),
         outline = Color.hsl(h, 0.10f, 0.50f),
         surfaceContainerLowest = s.dBackground,
         surfaceContainerLow = s.dSurface,
@@ -383,10 +384,45 @@ private fun darkFor(a: AccentTheme): ColorScheme {
         surfaceVariant = s.dVariant,
         outlineVariant = s.dOutline,
         surfaceContainerHighest = s.dHighest,
-        // No rosa o vermelho padrão ficava quase igual ao destaque; coral mantém o alerta distinto.
-        error = if (a == AccentTheme.ROSA) Color(0xFFFF9A80) else DarkScheme.error
+        error = DarkScheme.error
     )
 }
+
+/**
+ * Rosa no modo "escuro": em vez de escurecer, o app inteiro fica rosa claro e feminino
+ * (fundo e cartões rosados, texto vinho, destaque rosa-pink). Usa as cores guardadas nos
+ * campos "escuros" do Rosa. Textos conferidos: mínimo 4,5:1 sobre fundo e cartões.
+ */
+private fun rosaClaro(): ColorScheme {
+    val s = AccentTheme.ROSA.spec()
+    val vinho = Color(0xFF4A1030)
+    return LightScheme.copy(
+        primary = s.dPrimary, onPrimary = s.dOnPrimary,
+        primaryContainer = s.dContainer, onPrimaryContainer = s.dOnContainer,
+        secondary = s.dPrimary, onSecondary = s.dOnPrimary,
+        secondaryContainer = s.dContainer, onSecondaryContainer = s.dOnContainer,
+        surfaceTint = s.dPrimary,
+        background = s.dBackground, onBackground = vinho,
+        surface = s.dSurface, onSurface = vinho,
+        surfaceVariant = s.dVariant, onSurfaceVariant = Color(0xFF86395F),
+        outline = Color(0xFFB04A80), outlineVariant = s.dOutline,
+        error = Color(0xFFB3261E),
+        surfaceContainerLowest = s.dSurface,
+        surfaceContainerLow = Color(0xFFFFF0F6),
+        surfaceContainer = s.dSurface,
+        surfaceContainerHigh = Color(0xFFFFEEF5),
+        surfaceContainerHighest = s.dHighest
+    )
+}
+
+private fun rosaClaroApp(): AppColors = AppColors(
+    positive = Color(0xFF0F6E34),
+    warning = Color(0xFF9A4608),
+    violet = Color(0xFF6D4FD6),
+    headerBackground = AccentTheme.ROSA.spec().dHeader,
+    onHeader = Color.White,
+    onHeaderMuted = Color.White
+)
 
 /**
  * Cabeçalho do tema claro menos saturado e um pouco mais fundo, igual para as seis cores
@@ -407,8 +443,7 @@ private fun appColorsFor(a: AccentTheme, dark: Boolean): AppColors {
         positive = base.positive,
         warning = base.warning,
         violet = base.violet,
-        // No Rosa o cabeçalho fica na cor cheia: misturado com o fundo ele virava vinho em vez de rosa.
-        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, if (a == AccentTheme.ROSA) 0f else 0.45f) else softenHeader(s.lHeader),
+        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, 0.45f) else softenHeader(s.lHeader),
         onHeader = base.onHeader,
         onHeaderMuted = base.onHeaderMuted
     )
@@ -420,8 +455,9 @@ fun MeusGastosTheme(
     accent: AccentTheme = AccentTheme.VERDE,
     content: @Composable () -> Unit
 ) {
-    val scheme = if (darkTheme) darkFor(accent) else lightFor(accent)
-    val app = appColorsFor(accent, darkTheme)
+    val pastel = darkTheme && accent == AccentTheme.ROSA
+    val scheme = if (pastel) rosaClaro() else if (darkTheme) darkFor(accent) else lightFor(accent)
+    val app = if (pastel) rosaClaroApp() else appColorsFor(accent, darkTheme)
 
     // Barras do sistema acompanham o tema: a de cima fica na cor do cabeçalho (ícones claros) e a de
     // baixo na cor da barra de navegação do app.
@@ -434,7 +470,7 @@ fun MeusGastosTheme(
             window.setBackgroundDrawable(ColorDrawable(scheme.background.toArgb()))
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = false
-            controller.isAppearanceLightNavigationBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme || pastel
         }
     }
 
