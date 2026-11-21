@@ -313,8 +313,8 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
     AccentTheme.ROSA -> AccentSpec(
         c(0xFFD81B6F),
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
-        c(0xFFFFA3C7), c(0xFF4D0B2C), c(0xFF7C2455), c(0xFFFFD9EA), c(0xFFC0286F),
-        c(0xFF1B0F17), c(0xFF2E1B28), c(0xFF3A2332), c(0xFF66405A), c(0xFF4A2D3F)
+        c(0xFFFFB8D6), c(0xFF5A1038), c(0xFFA63577), c(0xFFFFE6F2), c(0xFFEC4C97),
+        c(0xFF2D1124), c(0xFF3E1C31), c(0xFF4B2539), c(0xFF85506E), c(0xFF5E3350)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
