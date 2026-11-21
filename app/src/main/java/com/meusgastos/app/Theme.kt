@@ -313,8 +313,8 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
     AccentTheme.ROSA -> AccentSpec(
         c(0xFFD81B6F),
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
-        c(0xFFFFC2DC), c(0xFF5A1038), c(0xFFC03F85), c(0xFFFFF4FA), c(0xFFE8559F),
-        c(0xFF3A1530), c(0xFF5A2347), c(0xFF6A2D55), c(0xFFB26A97), c(0xFF7E3B67)
+        c(0xFFFFC2DC), c(0xFF5A1038), c(0xFFCC246D), c(0xFFFFF4F8), c(0xFFF34993),
+        c(0xFF4B162D), c(0xFF77284A), c(0xFF8A3359), c(0xFFDC74A1), c(0xFF9E3D67)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
@@ -365,7 +365,7 @@ private fun darkFor(a: AccentTheme): ColorScheme {
         onBackground = Color.hsl(h, 0.14f, 0.91f),
         onSurface = Color.hsl(h, 0.14f, 0.91f),
         // Rosa: fundos mais claros pedem texto secundário mais claro para manter a leitura.
-        onSurfaceVariant = if (a == AccentTheme.ROSA) Color.hsl(h, 0.16f, 0.82f) else Color.hsl(h, 0.10f, 0.70f),
+        onSurfaceVariant = if (a == AccentTheme.ROSA) Color.hsl(h, 0.16f, 0.88f) else Color.hsl(h, 0.10f, 0.70f),
         outline = Color.hsl(h, 0.10f, 0.50f),
         surfaceContainerLowest = s.dBackground,
         surfaceContainerLow = s.dSurface,
@@ -384,7 +384,7 @@ private fun darkFor(a: AccentTheme): ColorScheme {
         outlineVariant = s.dOutline,
         surfaceContainerHighest = s.dHighest,
         // No rosa o vermelho padrão ficava quase igual ao destaque; coral mantém o alerta distinto.
-        error = if (a == AccentTheme.ROSA) Color(0xFFFF7A5C) else DarkScheme.error
+        error = if (a == AccentTheme.ROSA) Color(0xFFFF9A80) else DarkScheme.error
     )
 }
 
