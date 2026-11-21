@@ -314,9 +314,9 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
         c(0xFFD81B6F),
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
         // Rosa no modo escuro: não escurece, fica todo rosa claro (ver rosaClaro()).
-        // primária, sobre-primária, contêiner, sobre-contêiner, cabeçalho, fundo, cartão, variante, borda, realce
-        c(0xFFC41F68), c(0xFFFFFFFF), c(0xFFFFB3D1), c(0xFF5A1038), c(0xFFE24A8D),
-        c(0xFFFFDCE9), c(0xFFFFEEF5), c(0xFFFFD0E2), c(0xFFF29BBE), c(0xFFFFC4DB)
+        // primária, sobre-primária, contêiner, sobre-contêiner, cabeçalho, fundo, cartão, variante (= cartão: nos cartões grandes), borda, realce
+        c(0xFFB81C60), c(0xFFFFFFFF), c(0xFFFFB3D1), c(0xFF5A1038), c(0xFFE24A8D),
+        c(0xFFFFCCDF), c(0xFFFFEEF5), c(0xFFFFEEF5), c(0xFFF29BBE), c(0xFFFFC4DB)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
