@@ -315,8 +315,8 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
         // Rosa no modo escuro: não escurece, fica todo rosa claro (ver rosaClaro()).
         // primária, sobre-primária, contêiner, sobre-contêiner, cabeçalho, fundo, cartão, variante, borda, realce
-        c(0xFFC81E64), c(0xFFFFFFFF), c(0xFFFFC9DE), c(0xFF5A1038), c(0xFFE24A8D),
-        c(0xFFFFE3EE), c(0xFFFFF7FA), c(0xFFFFE8F1), c(0xFFF5B5CF), c(0xFFFFDCE9)
+        c(0xFFC41F68), c(0xFFFFFFFF), c(0xFFFFB3D1), c(0xFF5A1038), c(0xFFE24A8D),
+        c(0xFFFFDCE9), c(0xFFFFEEF5), c(0xFFFFD0E2), c(0xFFF29BBE), c(0xFFFFC4DB)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
@@ -404,13 +404,14 @@ private fun rosaClaro(): ColorScheme {
         surfaceTint = s.dPrimary,
         background = s.dBackground, onBackground = vinho,
         surface = s.dSurface, onSurface = vinho,
-        surfaceVariant = s.dVariant, onSurfaceVariant = Color(0xFF86395F),
-        outline = Color(0xFFB04A80), outlineVariant = s.dOutline,
+        surfaceVariant = s.dVariant, onSurfaceVariant = Color(0xFF7A2F55),
+        outline = Color(0xFFA8467A), outlineVariant = s.dOutline,
         error = Color(0xFFB3261E),
         surfaceContainerLowest = s.dSurface,
-        surfaceContainerLow = Color(0xFFFFF0F6),
+        // Todos os cartões e a barra de baixo no mesmo rosa (o cartão "tonal" antes sumia no fundo).
+        surfaceContainerLow = s.dSurface,
         surfaceContainer = s.dSurface,
-        surfaceContainerHigh = Color(0xFFFFEEF5),
+        surfaceContainerHigh = s.dSurface,
         surfaceContainerHighest = s.dHighest
     )
 }
@@ -418,7 +419,7 @@ private fun rosaClaro(): ColorScheme {
 private fun rosaClaroApp(): AppColors = AppColors(
     positive = Color(0xFF0F6E34),
     warning = Color(0xFF9A4608),
-    violet = Color(0xFF6D4FD6),
+    violet = Color(0xFF6240CC),
     headerBackground = AccentTheme.ROSA.spec().dHeader,
     onHeader = Color.White,
     onHeaderMuted = Color.White
