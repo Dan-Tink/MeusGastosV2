@@ -313,8 +313,8 @@ private fun AccentTheme.spec(): AccentSpec = when (this) {
     AccentTheme.ROSA -> AccentSpec(
         c(0xFFD81B6F),
         c(0xFFC2185B), c(0xFFFBDDE9), c(0xFF5B0A2D), c(0xFFD81B6F), c(0xFFFAF4F6), c(0xFFF5E9EE), c(0xFFEBDCE3),
-        c(0xFFFFB8D6), c(0xFF5A1038), c(0xFFA63577), c(0xFFFFE6F2), c(0xFFEC4C97),
-        c(0xFF2D1124), c(0xFF3E1C31), c(0xFF4B2539), c(0xFF85506E), c(0xFF5E3350)
+        c(0xFFFFC2DC), c(0xFF5A1038), c(0xFFC03F85), c(0xFFFFF4FA), c(0xFFE8559F),
+        c(0xFF3A1530), c(0xFF5A2347), c(0xFF6A2D55), c(0xFFB26A97), c(0xFF7E3B67)
     )
     AccentTheme.VERMELHO -> AccentSpec(
         c(0xFFD32F2F),
@@ -364,7 +364,8 @@ private fun darkFor(a: AccentTheme): ColorScheme {
     return DarkScheme.copy(
         onBackground = Color.hsl(h, 0.14f, 0.91f),
         onSurface = Color.hsl(h, 0.14f, 0.91f),
-        onSurfaceVariant = Color.hsl(h, 0.10f, 0.70f),
+        // Rosa: fundos mais claros pedem texto secundário mais claro para manter a leitura.
+        onSurfaceVariant = if (a == AccentTheme.ROSA) Color.hsl(h, 0.16f, 0.82f) else Color.hsl(h, 0.10f, 0.70f),
         outline = Color.hsl(h, 0.10f, 0.50f),
         surfaceContainerLowest = s.dBackground,
         surfaceContainerLow = s.dSurface,
@@ -406,7 +407,8 @@ private fun appColorsFor(a: AccentTheme, dark: Boolean): AppColors {
         positive = base.positive,
         warning = base.warning,
         violet = base.violet,
-        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, 0.45f) else softenHeader(s.lHeader),
+        // No Rosa o cabeçalho fica na cor cheia: misturado com o fundo ele virava vinho em vez de rosa.
+        headerBackground = if (dark) androidx.compose.ui.graphics.lerp(s.dHeader, s.dBackground, if (a == AccentTheme.ROSA) 0f else 0.45f) else softenHeader(s.lHeader),
         onHeader = base.onHeader,
         onHeaderMuted = base.onHeaderMuted
     )
