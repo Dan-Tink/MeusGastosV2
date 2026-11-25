@@ -792,7 +792,7 @@ private fun ListTotal(state: UiState, creditOnly: Boolean = false) {
             if (creditOnly) "Fatura do cartão · ${state.items.size} compra(s)"
             else "Total · ${state.items.size.plural("lançamento", "lançamentos")}",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = PageTextMuted,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -800,7 +800,7 @@ private fun ListTotal(state: UiState, creditOnly: Boolean = false) {
             style = MaterialTheme.typography.titleMedium,
             fontFamily = MoneyFont,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = PageText
         )
     }
 }
@@ -971,13 +971,13 @@ private fun DayHeader(epochDay: Long, totalCents: Long) {
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = PageTextMuted
         )
         Text(
             totalCents.toMoney(),
             style = MaterialTheme.typography.labelLarge,
             fontFamily = MoneyFont,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = PageTextMuted
         )
     }
 }
@@ -1006,11 +1006,11 @@ fun EmptyState(icon: androidx.compose.ui.graphics.vector.ImageVector, title: Str
                 modifier = Modifier.size(34.dp)
             )
         }
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PageText)
         Text(
             hint,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = PageTextMuted
         )
     }
 }

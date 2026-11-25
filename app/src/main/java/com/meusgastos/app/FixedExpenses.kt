@@ -84,7 +84,7 @@ fun LazyListScope.fixedExpensesTab(
             Text(
                 "Nenhuma despesa fixa neste mês. Cadastre aluguel, internet, mensalidades… e use \"Pagar\" todo mês.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = PageTextMuted,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }
@@ -98,8 +98,8 @@ fun LazyListScope.fixedExpensesTab(
 /** Espaço pontilhado no fim da lista: discreto, mas sempre à mão para cadastrar mais uma. */
 @Composable
 private fun NewFixedSlot(onClick: () -> Unit) {
-    val color = MaterialTheme.colorScheme.primary
-    val dash = MaterialTheme.colorScheme.outline
+    val color = PageAccent
+    val dash = PageTextMuted
     Row(
         Modifier
             .fillMaxWidth()

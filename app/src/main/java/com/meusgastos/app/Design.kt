@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.LocalGroceryStore
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Bolt
@@ -94,6 +95,9 @@ fun categoryIcon(name: String): ImageVector = when (name) {
     "Saúde" -> Icons.Default.LocalHospital
     "Lazer" -> Icons.Default.SportsEsports
     "Compras" -> Icons.Default.ShoppingBag
+    "Mercado" -> Icons.Default.LocalGroceryStore
+    "Combustível" -> Icons.Default.LocalGasStation
+    "Estacionamento" -> Icons.Default.LocalParking
     "Contas" -> Icons.Default.ReceiptLong
     "Outros" -> Icons.Default.MoreHoriz
     else -> Icons.Default.Category

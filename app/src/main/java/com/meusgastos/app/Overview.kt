@@ -109,7 +109,7 @@ fun OverviewCard(
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Tile("Ganhos", o.income, PositiveColor, hidden, Modifier.weight(1f), onClick = onIncomeClick)
-                Tile("Fixos", o.fixed, WarningColor, hidden, Modifier.weight(1f))
+                Tile("Fixas", o.fixed, WarningColor, hidden, Modifier.weight(1f))
                 Tile("Variáveis", o.variable, AccentViolet, hidden, Modifier.weight(1f))
             }
             if (o.debtPaid > 0) {

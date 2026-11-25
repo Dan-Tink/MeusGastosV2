@@ -196,17 +196,17 @@ private fun SectionHeader(title: String, caption: String, total: Long) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PageText)
             Text(
                 caption,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = PageTextMuted
             )
         }
         Text(
             total.toMoney(),
             fontFamily = MoneyFont,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = PageTextMuted
         )
     }
 }
@@ -216,7 +216,7 @@ private fun EmptyHint(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = PageTextMuted,
         modifier = Modifier.padding(vertical = 4.dp)
     )
 }
